@@ -35,3 +35,11 @@ tmp/
 # HuggingFace / SentenceTransformers cache (optional)
 .cache/
 .hf_cache/
+
+# Local runtime artifacts (never commit)
+.env
+cloudflared*
+cert.pem
+config.yml
+*.log
+ENSTA_DATASET/04_index/backups/

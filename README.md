@@ -23,8 +23,7 @@ This repository contains a complete **end-to-end prototype** of an ENSTA campus 
 - `app.py` — FastAPI service (RAG + sessions + refusal + email escalation + hot reload)
 - `.env.example` — environment template
 - `requirements.txt` — Python dependencies
-- `cloudflared.exe`, `cloudflared.log`, `config.yml`, `cert.pem` — Cloudflare exposure artifacts 
-- `CONFIGURATION.md` — extra notes (if used)
+- Cloudflare Tunnel files (`cloudflared`, `config.yml`, `cert.pem`) are **not** versioned: install `cloudflared` separately (see section 9). They are listed in `.gitignore`.
 
 
 ### UI
@@ -36,7 +35,7 @@ This repository contains a complete **end-to-end prototype** of an ENSTA campus 
 - `ENSTA_DATASET/01_raw/` — raw extracted data (JSONL): `web_docling.jsonl`, `pdfs_docling.jsonl`, `xlsx_courses.jsonl`, etc.
 - `ENSTA_DATASET/02_clean/` — cleaned corpora + reports (`corpus_clean.jsonl`, `clean_report_docling.json`, `*_clean.jsonl`)
 - `ENSTA_DATASET/03_chunks/chunks.jsonl` — retrieval units
-- `ENSTA_DATASET/04_index/` — FAISS + meta + `reload.flag` + `backups/`
+- `ENSTA_DATASET/04_index/` — FAISS + meta + `reload.flag` (`backups/` is created locally by the rebuild and is not versioned)
 - `ENSTA_DATASET/scripts/` — pipeline scripts + Task Scheduler scripts
 - `ENSTA_DATASET/logs/` — daily pipeline logs
 
@@ -350,11 +349,11 @@ Widget purpose:
 
 ## 9) Cloudflare Tunnel exposure
 
-You have `cloudflared.exe` at repo root.
+Install `cloudflared` from Cloudflare's official releases (it is not shipped in this repository), then run it from its install location.
 
 ### 9.1 Quick tunnel
 ```powershell
-.\cloudflared.exe tunnel --url http://127.0.0.1:8001
+cloudflared tunnel --url http://127.0.0.1:8001
 ```
 
 ### 9.2 Known limitation
