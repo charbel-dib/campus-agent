@@ -429,6 +429,33 @@ python eval/review.py eval/heldout.jsonl
 python eval/run_eval.py --questions eval/heldout.jsonl --validated-only --min-score 0.848
 ```
 
+### Results on the held-out questions
+
+The 24 held-out questions (23 kept after review) come from sources absent from the main set.
+
+| Set | Hit@1 | Hit@3 | Hit@8 | MRR@8 |
+|---|---:|---:|---:|---:|
+| Main set, 48 answerable | 68.8 % | 81.2 % | 93.8 % | 0.770 |
+| Held-out set, 12 answerable | 33.3 % | 58.3 % | 83.3 % | 0.487 |
+
+Retrieval is clearly weaker on the held-out questions. The main set was written from passages
+whose facts were easy to spot, so its scores are optimistic; across all 60 answerable questions,
+the expected source reaches the model in 55 cases (91.7 %).
+
+Refusal threshold on the best dense score (answerable questions kept / out-of-scope refused):
+
+| Threshold | Main set | Held-out set |
+|---|---|---|
+| 0.08 (former default) | 48/48 kept · 0/12 refused | 12/12 kept · 0/11 refused |
+| 0.82 | 44/48 · 8/12 | 11/12 · 9/11 |
+| **0.84 (new default)** | **44/48 · 10/12** | **10/12 · 10/11** |
+| 0.848 (best on the main set) | 39/48 · 11/12 | 9/12 · 11/11 |
+
+0.848, chosen on the main set, refused every unseen out-of-scope question but also a quarter of the
+answerable ones. 0.84 is the default because it refuses most off-topic questions while keeping
+about 9 in 10 answerable ones; it was picked after seeing both sets, so a fresh set would be needed
+to confirm it. Questions above the threshold can still be refused by the language model.
+
 Not measured yet: answer correctness, citation accuracy and refusal rate with the language model
 (`--answers`), which need an API quota.
 

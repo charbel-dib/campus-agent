@@ -223,7 +223,10 @@ TOP_K = int(os.getenv("TOP_K", "8"))
 # eval/README results: Hit@3 81.2 % -> 89.6 % with cross-encoder/mmarco-mMiniLMv2-L12-H384-v1.
 RERANK_MODEL = os.getenv("RERANK_MODEL", "").strip()
 RERANK_POOL = int(os.getenv("RERANK_POOL", "30"))
-MIN_SCORE = float(os.getenv("MIN_SCORE", "0.08"))
+# Best dense score below which the question is refused without calling the model.
+# 0.84 keeps 44/48 answerable and refuses 10/12 out-of-scope questions on eval/questions.jsonl,
+# 10/12 and 10/11 on eval/heldout.jsonl (see README, Evaluation). The former 0.08 refused nothing.
+MIN_SCORE = float(os.getenv("MIN_SCORE", "0.84"))
 
 MAX_HISTORY_TURNS = int(os.getenv("MAX_HISTORY_TURNS", "8"))
 MAX_HISTORY_CHARS = int(os.getenv("MAX_HISTORY_CHARS", "6000"))
