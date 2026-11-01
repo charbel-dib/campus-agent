@@ -1,6 +1,6 @@
 """Review the evaluation questions one by one before trusting the scores.
 
-    python eval/review.py
+    python eval/review.py [eval/heldout.jsonl]
 
 For each unvalidated question: the question, the expected facts and an excerpt of the expected source.
 Answer  o = correct (validated)   s = drop this question   Enter = skip for now   q = save and quit.
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +31,9 @@ def excerpt(text: str, facts) -> str:
 
 
 def main() -> None:
+    global QUESTIONS
+    if len(sys.argv) > 1:
+        QUESTIONS = ROOT / sys.argv[1]
     rows = [json.loads(line) for line in QUESTIONS.read_text(encoding="utf-8").splitlines() if line.strip()]
     texts = {}
     for line in META.read_text(encoding="utf-8").splitlines():

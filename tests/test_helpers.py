@@ -76,3 +76,33 @@ def test_sources_block_numbers_sources_and_returns_best_score():
     assert "Le stage dure 12 semaines." in text
     assert best == pytest.approx(0.82)
     assert app.build_sources_block([]) == ("", 0.0)
+
+
+class FakeEmbedder:
+    def encode(self, texts, normalize_embeddings, show_progress_bar):
+        return np.zeros((len(texts), 4), dtype=np.float32)
+
+
+class LengthReranker:
+    """Scores a passage by its length, so the expected order is easy to read."""
+
+    def predict(self, pairs):
+        return [len(text) for _, text in pairs]
+
+
+class ThreeHitIndex:
+    def search(self, query, k):
+        return np.array([[0.9, 0.8, 0.7]]), np.array([[0, 1, 2]])
+
+
+def test_search_passages_reranks_but_keeps_the_best_dense_score():
+    metas = [{"text": "a"}, {"text": "ccc"}, {"text": "bb"}]
+    hits, best = app.search_passages(ThreeHitIndex(), metas, FakeEmbedder(), LengthReranker(), "q")
+    assert [m["text"] for _, m in hits] == ["ccc", "bb", "a"]
+    assert best == pytest.approx(0.9)
+
+
+def test_search_passages_without_reranker_keeps_dense_order():
+    metas = [{"text": "a"}, {"text": "ccc"}, {"text": "bb"}]
+    hits, _ = app.search_passages(ThreeHitIndex(), metas, FakeEmbedder(), None, "q")
+    assert [m["text"] for _, m in hits] == ["a", "ccc", "bb"]

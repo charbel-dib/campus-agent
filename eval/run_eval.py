@@ -1,8 +1,10 @@
-"""Evaluate the ENSTA assistant on eval/questions.jsonl, with the app's own index, model and settings.
+"""Evaluate the ENSTA assistant with the app's own index, model, retrieval code and settings.
 
     python eval/run_eval.py                       retrieval only, no API key needed
     python eval/run_eval.py --rerank              retrieval + multilingual cross-encoder reranking
     python eval/run_eval.py --answers [--rerank]  full answers with the OpenAI model from .env (paid, ~60 calls)
+
+    python eval/run_eval.py --questions eval/heldout.jsonl --min-score 0.848   threshold on unseen questions
 
 Results go to eval/results/<label>.json and .md. Use --validated-only once questions are reviewed.
 """
@@ -24,7 +26,6 @@ import app  # noqa: E402  (reads .env and the same settings as the server)
 from metrics import best_threshold, cited_sources, facts_match, first_hit_rank, retrieval_summary  # noqa: E402
 
 DEFAULT_RERANKER = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"  # multilingual, ~120M parameters
-POOL = 30  # candidates passed to the reranker
 
 
 class UsageMeter:
@@ -45,25 +46,10 @@ class UsageMeter:
         return response
 
 
-def load_questions(validated_only: bool):
-    rows = [json.loads(line) for line in (ROOT / "eval" / "questions.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+def load_questions(path: Path, validated_only: bool):
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     rows = [r for r in rows if not r.get("drop")]
     return [r for r in rows if r.get("validated")] if validated_only else rows
-
-
-def search(index, metas, model, question: str, reranker):
-    import numpy as np
-
-    qvec = app.embed_query(model, question).reshape(1, -1)
-    depth = POOL if reranker is not None else app.TOP_K
-    scores, ids = index.search(qvec, depth)
-    hits = [(float(s), metas[i]) for s, i in zip(scores[0].tolist(), ids[0].tolist()) if 0 <= i < len(metas)]
-    dense_best = hits[0][0] if hits else 0.0
-    if reranker is not None and hits:
-        rerank_scores = reranker.predict([(question, (m.get("text") or "")[:1400]) for _, m in hits])
-        order = np.argsort(-np.asarray(rerank_scores))
-        hits = [hits[j] for j in order]
-    return hits[: app.TOP_K], dense_best
 
 
 def main() -> None:
@@ -71,12 +57,19 @@ def main() -> None:
     parser.add_argument("--rerank", nargs="?", const=DEFAULT_RERANKER, help="cross-encoder model name")
     parser.add_argument("--answers", action="store_true", help="also generate answers with the OpenAI model")
     parser.add_argument("--validated-only", action="store_true")
+    parser.add_argument("--questions", default="eval/questions.jsonl", help="question file (eval/heldout.jsonl for the held-out check)")
+    parser.add_argument("--min-score", type=float, help="override the similarity threshold, e.g. to test it on held-out questions")
     args = parser.parse_args()
 
     import faiss
     from sentence_transformers import CrossEncoder, SentenceTransformer
 
-    questions = load_questions(args.validated_only)
+    if args.min_score is not None:
+        app.MIN_SCORE = args.min_score
+    question_file = ROOT / args.questions
+    questions = load_questions(question_file, args.validated_only)
+    if not questions:
+        sys.exit("No question to evaluate: review some with eval/review.py, or drop --validated-only.")
     index = faiss.read_index(str(app.INDEX_PATH))
     metas = app.load_meta(app.META_PATH)
     model = SentenceTransformer(app.EMB_MODEL)
@@ -86,7 +79,7 @@ def main() -> None:
     rows = []
     started = time.perf_counter()
     for q in questions:
-        hits, dense_best = search(index, metas, model, q["question"], reranker)
+        hits, dense_best = app.search_passages(index, metas, model, reranker, q["question"])
         sources = [m.get("source", "") for _, m in hits]
         row = {
             "id": q["id"], "type": q["type"], "lang": q["lang"], "source_type": q.get("source_type"),
@@ -124,6 +117,7 @@ def main() -> None:
             "in_scope_median": median(r["dense_best"] for r in inside),
             "out_of_scope_median": median(r["dense_best"] for r in outside) if outside else None,
             "threshold_refuses_out_of_scope": mean(1.0 if r["dense_best"] < app.MIN_SCORE else 0.0 for r in outside) if outside else None,
+            "threshold_keeps_in_scope": mean(1.0 if r["dense_best"] >= app.MIN_SCORE else 0.0 for r in inside),
             "indicative_best_threshold": best_threshold([r["dense_best"] for r in inside], [r["dense_best"] for r in outside]) if outside else None,
         },
         "seconds_per_question": elapsed / max(1, len(rows)),
@@ -140,6 +134,10 @@ def main() -> None:
         }
 
     label = ("answers-" if args.answers else "retrieval-") + ("rerank" if args.rerank else "dense")
+    if question_file.stem != "questions":
+        label = f"{question_file.stem}-{label}"
+    if args.min_score is not None:
+        label += f"-min{args.min_score:g}"
     out_dir = ROOT / "eval" / "results"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{label}.json").write_text(json.dumps({"summary": summary, "rows": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -163,7 +161,8 @@ def to_markdown(label: str, s: dict, n: int) -> str:
     d = s["dense_best_score"]
     lines += ["", f"Best dense score, median: answerable {d['in_scope_median']:.3f}, out of scope "
               f"{d['out_of_scope_median']:.3f}. The current threshold ({s['min_score']}) refuses "
-              f"{pct(d['threshold_refuses_out_of_scope'])} of out-of-scope questions."]
+              f"{pct(d['threshold_refuses_out_of_scope'])} of out-of-scope questions and keeps "
+              f"{pct(d['threshold_keeps_in_scope'])} of answerable ones."]
     if d["indicative_best_threshold"]:
         b = d["indicative_best_threshold"]
         lines.append(f"Indicative best threshold on this set: {b['threshold']:.3f} (balanced accuracy {pct(b['balanced_accuracy'])}).")

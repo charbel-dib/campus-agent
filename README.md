@@ -417,6 +417,18 @@ What the numbers say:
   and lists are split into chunks that match questions poorly. Two questions are never retrieved:
   q024 (course prerequisites, a course sheet) and q028 (an end-of-studies project, a PDF).
 
+Reranking is available in the app: set `RERANK_MODEL=cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`
+(off by default; it adds a ~470 MB model and some CPU time per question). The evaluation calls the
+same `search_passages` function as the server, so both always measure the same code.
+
+To check a threshold without reusing the questions that chose it, `eval/heldout.jsonl` holds 24
+new questions (12 answerable from sources absent from the main set, 12 out of scope):
+
+```bash
+python eval/review.py eval/heldout.jsonl
+python eval/run_eval.py --questions eval/heldout.jsonl --validated-only --min-score 0.848
+```
+
 Not measured yet: answer correctness, citation accuracy and refusal rate with the language model
 (`--answers`), which need an API quota.
 
