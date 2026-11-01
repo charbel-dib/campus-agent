@@ -390,8 +390,35 @@ python eval/run_eval.py --rerank         # same, with a multilingual cross-encod
 python eval/run_eval.py --answers        # answers: correct facts, citations, refusals (OpenAI key)
 ```
 
-Results are written to `eval/results/`. The set is small, so differences of a few points between
-configurations are not significant.
+Results are written to `eval/results/`.
+
+### Results (November 2026, retrieval)
+
+Answerable questions (48). Hit@k: the expected source is among the first k passages; top 8 is what
+the language model receives.
+
+| Configuration | Hit@1 | Hit@3 | Hit@8 | MRR@8 |
+|---|---:|---:|---:|---:|
+| Dense retrieval (`multilingual-e5-base`, as deployed) | 68.8 % | 81.2 % | 93.8 % | 0.770 |
+| + cross-encoder reranking of the top 30 (`mmarco-mMiniLMv2-L12`) | 70.8 % | 89.6 % | 95.8 % | 0.806 |
+
+What the numbers say:
+
+- **Retrieval is not the bottleneck.** The expected source reaches the model for 45 of 48 questions
+  (46 with reranking). English questions over French pages do as well as French ones (7/7 in the top 8).
+- **Reranking mainly improves the top 3** (+8.4 points). With 48 questions, one question is worth
+  2.1 points, so the other differences are within noise.
+- **The similarity threshold does not refuse anything.** `MIN_SCORE=0.08` refused 0 of the 12
+  out-of-scope questions: e5 scores sit between 0.75 and 0.91 for every query, so refusals currently
+  rely on the language model alone. On this set, a threshold of 0.848 would separate answerable and
+  out-of-scope questions with 90.6 % balanced accuracy, but it was fitted on the same questions;
+  it needs a held-out set before going into production.
+- **PDF brochures are the weak source** (1 of 3 in the top 8 without reranking, 2 with): their tables
+  and lists are split into chunks that match questions poorly. Two questions are never retrieved:
+  q024 (course prerequisites, a course sheet) and q028 (an end-of-studies project, a PDF).
+
+Not measured yet: answer correctness, citation accuracy and refusal rate with the language model
+(`--answers`), which need an API quota.
 
 ## Licence
 
