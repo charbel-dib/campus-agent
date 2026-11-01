@@ -375,6 +375,24 @@ The tests cover language detection, small-talk and gibberish filtering, history 
 mapping, source formatting and the HTTP endpoints. They need neither the embedding model, the FAISS
 index nor an API key, and run on every push (GitHub Actions).
 
+## 11) Evaluation
+
+`eval/questions.jsonl` holds 60 questions written from the indexed corpus: 48 answerable ones (41 in
+French, 7 in English over French sources; web pages, course sheets and PDFs), each with its expected
+source and the facts a correct answer must contain, plus 12 out-of-scope questions the assistant
+must refuse. Every expected fact was checked against its source passage; `eval/review.py` is the
+manual review pass.
+
+```bash
+python eval/review.py                    # review the questions
+python eval/run_eval.py                  # retrieval: hit@k and MRR, no API key
+python eval/run_eval.py --rerank         # same, with a multilingual cross-encoder reranker
+python eval/run_eval.py --answers        # answers: correct facts, citations, refusals (OpenAI key)
+```
+
+Results are written to `eval/results/`. The set is small, so differences of a few points between
+configurations are not significant.
+
 ## Licence
 
 Code: MIT (see [LICENSE](LICENSE)). The documents in `ENSTA_DATASET` come from public ENSTA pages and
