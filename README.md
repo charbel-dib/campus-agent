@@ -1,4 +1,6 @@
-# ACA-ENSTA - ENSTA Campus Assistant 
+# ACA-ENSTA - ENSTA Campus Assistant
+
+[![Tests](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml/badge.svg)](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml) 
 ## Quick Start
 
 ```bash
@@ -105,9 +107,8 @@ Example (Windows):
 ```env
 OPENAI_API_KEY=sk-...
 
-ENSTA_DATASET=C:\Users\charb\OneDrive - ENSTA\Documents\Projet 3A\to github\ENSTA_DATASET
-FAISS_INDEX_PATH=C:\Users\charb\OneDrive - ENSTA\Documents\Projet 3A\to github\ENSTA_DATASET\04_index\ensta.faiss
-META_JSONL_PATH=C:\Users\charb\OneDrive - ENSTA\Documents\Projet 3A\to github\ENSTA_DATASET\04_index\ensta_meta.jsonl
+# Optional: the defaults point to ./ENSTA_DATASET inside the repository
+ENSTA_DATASET=./ENSTA_DATASET
 ```
 
 ### 3.3 RAG settings
@@ -362,3 +363,19 @@ Some campus networks block Cloudflare tunnel traffic. If blocked:
 - or run on a VPS/cloud host
 
 ---
+
+## 10) Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+The tests cover language detection, small-talk and gibberish filtering, history pruning, retrieval
+mapping, source formatting and the HTTP endpoints. They need neither the embedding model, the FAISS
+index nor an API key, and run on every push (GitHub Actions).
+
+## Licence
+
+Code: MIT (see [LICENSE](LICENSE)). The documents in `ENSTA_DATASET` come from public ENSTA pages and
+files and remain the property of ENSTA; they are included only to make the prototype reproducible.
