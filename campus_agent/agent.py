@@ -211,7 +211,7 @@ class Agent:
                 break
             try:
                 started = self.clock_seconds()
-                resp = self.llm.create(system=system, messages=_with_cache_breakpoint(trim_history(messages)),
+                resp = self.llm.create(system=system, messages=prepare_messages(messages),
                                        tools=tool_defs, max_tokens=self.max_tokens)
                 turn.usage.add(getattr(self.llm, "model", ""), resp.get("usage", {}), self.clock_seconds() - started)
             except LLMError as exc:
@@ -270,6 +270,28 @@ def trim_history(messages: list[dict], max_turns: int = MAX_HISTORY_TURNS) -> li
     if len(starts) <= max_turns:
         return messages
     return messages[starts[-max_turns]:]
+
+
+def drop_old_thinking(messages: list[dict]) -> list[dict]:
+    """Remove thinking blocks from finished turns; keep those of the turn in progress.
+
+    Thinking blocks are signed against the conversation that produced them, including the system
+    prompt, which carries the current time and so changes between turns. Claude only needs the
+    thinking of the current tool-use loop; older blocks are dropped (they would also cost tokens).
+    """
+    starts = [i for i, m in enumerate(messages) if m["role"] == "user" and isinstance(m["content"], str)]
+    current = starts[-1] if starts else 0
+    out = []
+    for i, m in enumerate(messages):
+        if i < current and m["role"] == "assistant" and isinstance(m["content"], list):
+            kept = [b for b in m["content"] if b.get("type") not in ("thinking", "redacted_thinking")]
+            m = {**m, "content": kept or [{"type": "text", "text": "…"}]}
+        out.append(m)
+    return out
+
+
+def prepare_messages(messages: list[dict]) -> list[dict]:
+    return _with_cache_breakpoint(drop_old_thinking(trim_history(messages)))
 
 
 def _with_cache_breakpoint(messages: list[dict]) -> list[dict]:

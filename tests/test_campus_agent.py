@@ -204,3 +204,25 @@ def test_trim_history_cuts_on_turn_boundaries():
     out = trim_history(msgs, max_turns=5)
     assert out[0] == {"role": "user", "content": "q15"} and len(out) == 20
     assert_valid_conversation(out)
+
+
+def test_thinking_of_finished_turns_is_not_sent_again(conn):
+    thought = {"type": "thinking", "thinking": "…", "signature": "sig"}
+
+    def with_thinking(resp):
+        return {**resp, "content": [thought, *resp["content"]]}
+
+    llm = ScriptedLLM([with_thinking(tool_use("get_messages", {})), with_thinking(text("Rien.")),
+                       with_thinking(tool_use("get_absences", {}, "c2")), text("Une absence.")])
+    agent = make_agent(conn, llm)
+    sid = agent.new_session(STUDENT)
+    agent.run(sid, STUDENT, "Mes messages ?")
+    # inside the first turn, the thinking that preceded the tool call is sent back with it
+    assert llm.requests[1]["messages"][1]["content"][0]["type"] == "thinking"
+    agent.run(sid, STUDENT, "Mes absences ?")
+    second_turn = llm.requests[2]["messages"]
+    old = [b for m in second_turn[:-1] if m["role"] == "assistant" for b in m["content"]]
+    assert all(b.get("type") != "thinking" for b in old)
+    current = llm.requests[3]["messages"]
+    assert current[-2]["content"][0]["type"] == "thinking"     # the current loop keeps its own
+    assert_valid_conversation(current)
