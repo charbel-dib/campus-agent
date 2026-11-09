@@ -58,6 +58,7 @@ class Settings:
     anthropic_api_key: str
     model: str
     max_tokens: int
+    effort: str
     max_steps: int
     api_timeout_seconds: float
     # Cost control
@@ -85,7 +86,8 @@ def load_settings(env_file: Path | None = None) -> Settings:
         seed=_env_int("CAMPUS_SEED", 2026),
         anthropic_api_key=_env("ANTHROPIC_API_KEY", ""),
         model=_env("CAMPUS_MODEL", "claude-haiku-5-5"),
-        max_tokens=_env_int("CAMPUS_MAX_TOKENS", 1500),
+        max_tokens=_env_int("CAMPUS_MAX_TOKENS", 4096),
+        effort=_env("CAMPUS_EFFORT", ""),
         max_steps=_env_int("CAMPUS_MAX_STEPS", 10),
         api_timeout_seconds=_env_float("CAMPUS_API_TIMEOUT", 60.0),
         session_budget_usd=_env_float("CAMPUS_SESSION_BUDGET_USD", 0.25),
