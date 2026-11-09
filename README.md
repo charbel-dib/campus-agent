@@ -2,6 +2,10 @@
 
 [![Tests](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml/badge.svg)](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml)
 
+**Live demo: [charbeld77-agent-campus.hf.space](https://charbeld77-agent-campus.hf.space)**, no sign-up; each
+visitor gets a private copy of the school. Built by [Charbel Dib](https://www.linkedin.com/in/charbel-dib7)
+([portfolio](https://charbel-dib.vercel.app)).
+
 An AI agent for an engineering school: it reads calendars, finds common free slots, books rooms
 and appointments, moves classes and tells the students, handles absence justifications, issues
 certificates and answers from the school rules, with citations. It acts with the rights of the
@@ -33,7 +37,7 @@ Sonnet 5.5 passes the same scenarios at about **24 times the cost**, so Haiku is
 - **Permissions live on the server**, not in the prompt: a student who talks the model into
   asking for someone else's grades still gets a refusal from the tool.
 - **Measured**: 41 scenarios checked on the database after each run (12 of them held out), plus
-  81 tests that need no model call.
+  87 tests that need no model call.
 
 ## Try it
 
@@ -147,12 +151,12 @@ every write tool carries `destructiveHint` so the client asks the user first.
 - **Audit trail.** Every tool call is logged with who, what, through which channel and with which
   outcome (`ok`, `pending`, `executed`, `denied`, `conflict`…); the office sees it in the interface.
 - **Cost control.** Prompt caching of the tools, instructions and conversation; a step cap per
-  turn; a budget per conversation and per day; the cost of each exchange computed from the
+  turn; a budget per conversation, per visitor and per day; the cost of each exchange computed from the
   published prices and shown to the user.
 - **Robustness.** Retries with back-off on rate limits and overloads, timeouts, tool errors
   returned to the model so it can recover, history trimmed only on turn boundaries.
 - **Engineering.** Typed settings from the environment, a dependency-light core (standard library,
-  `requests`, `reportlab`), 81 tests for the agent, CI that also builds the Docker image and probes it,
+  `requests`, `reportlab`), 87 tests for the agent, CI that also builds the Docker image and probes it,
   non-root container with a health check.
 
 ## Evaluation
@@ -216,6 +220,15 @@ What the runs showed, and what was done about it:
 
 Not covered by the evaluation: long conversations (beyond a few turns), simultaneous users, and
 other languages than French.
+
+## Public demo
+
+The demo runs on a Hugging Face Space ([`deploy/huggingface`](deploy/huggingface)) that builds `main` from
+this repository. It runs with `CAMPUS_SANDBOX=1`: each visitor receives a private copy of the school when
+choosing a persona, kept across persona changes and dropped after six hours without activity, so visitors
+never see each other's bookings and the demo never wears out. Each visitor has 30 messages and at most
+$0.15; a ledger shared by all copies caps the whole demo at $2 a day. A scheduled workflow
+([`keep-alive.yml`](.github/workflows/keep-alive.yml)) calls it daily so it does not fall asleep.
 
 ## Use it from Claude Desktop
 
