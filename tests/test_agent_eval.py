@@ -17,6 +17,8 @@ sys.path.insert(0, str(ROOT / "eval"))
 import run_agent_eval as harness  # noqa: E402
 
 SPEC = json.loads((ROOT / "eval" / "agent_scenarios.json").read_text(encoding="utf-8"))
+HELDOUT = json.loads((ROOT / "eval" / "agent_heldout.json").read_text(encoding="utf-8"))
+ALL_SCENARIOS = SPEC["scenarios"] + HELDOUT["scenarios"]
 
 
 @pytest.fixture(scope="module")
@@ -30,11 +32,12 @@ def template(tmp_path_factory):
 
 
 def test_scenarios_are_well_formed():
-    ids = [s["id"] for s in SPEC["scenarios"]]
-    assert len(ids) == len(set(ids)) >= 25
+    ids = [s["id"] for s in ALL_SCENARIOS]
+    assert len(ids) == len(set(ids)) >= 40
+    assert HELDOUT["now"] == SPEC["now"] and HELDOUT["seed"] == SPEC["seed"]
     known = {"tool_called", "tool_not_called", "no_successful_tool", "pending_tool", "no_pending",
              "reply_contains_any", "reply_not_contains", "asks_user", "sql"}
-    for s in SPEC["scenarios"]:
+    for s in ALL_SCENARIOS:
         assert s["turns"] and s["checks"] and s["confirm"] in ("all", "none")
         assert {c["type"] for c in s["checks"]} <= known
 
@@ -45,7 +48,7 @@ def test_setups_run_and_sql_checks_are_valid(template, tmp_path, doc_index):
     from campus_agent.clock import Clock
     from campus_agent.domain import Context, load_actor
 
-    for s in SPEC["scenarios"]:
+    for s in ALL_SCENARIOS:
         path = tmp_path / f"{s['id']}.db"
         shutil.copy(template, path)
         conn = db.connect(path)
@@ -66,7 +69,7 @@ def test_unchanged_school_fails_the_action_scenarios(template, tmp_path, doc_ind
     shutil.copy(template, tmp_path / "x.db")
     conn = db.connect(tmp_path / "x.db")
     empty_run = {"replies": [""], "tool_calls": [], "proposed": []}
-    for s in SPEC["scenarios"]:
+    for s in ALL_SCENARIOS:
         if s["category"] == "planification":
             results = [harness.evaluate(c, empty_run, conn)[0] for c in s["checks"]]
             assert not all(results), s["id"]

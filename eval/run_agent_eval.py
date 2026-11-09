@@ -35,7 +35,7 @@ from campus_agent.domain.documents import DocumentIndex  # noqa: E402
 from campus_agent.llm import ClaudeClient, Usage  # noqa: E402
 from campus_agent.seed import create_database  # noqa: E402
 
-SCENARIOS = ROOT / "eval" / "agent_scenarios.json"
+SETS = {"main": ROOT / "eval" / "agent_scenarios.json", "heldout": ROOT / "eval" / "agent_heldout.json"}
 RESULTS = ROOT / "eval" / "results"
 MAX_DECISIONS = 6
 OPS = {"==": lambda a, b: a == b, ">=": lambda a, b: a >= b, "<=": lambda a, b: a <= b, ">": lambda a, b: a > b}
@@ -219,13 +219,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--effort", default=None, help="low, medium or high (default: the model's)")
     parser.add_argument("--batch", help="run part N of K, e.g. 1/3 (long runs split across calls)")
     parser.add_argument("--merge", action="store_true", help="combine the saved batches into one report")
+    parser.add_argument("--set", default="main", choices=sorted(SETS), help="main scenarios or the held-out ones")
     args = parser.parse_args(argv)
 
     settings = load_settings()
     model = args.model or settings.model
-    spec = json.loads(SCENARIOS.read_text(encoding="utf-8"))
+    spec = json.loads(SETS[args.set].read_text(encoding="utf-8"))
     scenarios = spec["scenarios"]
-    stem = f"agent-{model}" + (f"-{args.effort}" if args.effort else "")
+    stem = f"agent-{model}" + (f"-{args.effort}" if args.effort else "") + ("-heldout" if args.set == "heldout" else "")
     if args.merge:
         parts = sorted(RESULTS.glob(f"{stem}-batch*.json"))
         results = [r for p in parts for r in json.loads(p.read_text(encoding="utf-8"))["results"]]

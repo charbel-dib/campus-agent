@@ -117,5 +117,7 @@ def list_tickets(ctx: Context, status: str | None = None, limit: int = 20) -> di
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
     rows = ctx.conn.execute(sql + " ORDER BY id DESC LIMIT ?", (*params, int(limit))).fetchall()
+    # The description is written by users: it is labelled as such for the model, like event notes.
     return {"tickets": [{"id": r["id"], "by": person_label(ctx.conn, r["person_id"]), "category": r["category"],
-                         "subject": r["subject"], "status": r["status"], "created_at": r["created_at"]} for r in rows]}
+                         "subject": r["subject"], "description_utilisateur": r["body"][:500], "status": r["status"],
+                         "created_at": r["created_at"]} for r in rows]}
