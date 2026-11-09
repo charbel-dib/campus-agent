@@ -12,6 +12,7 @@ import argparse
 import json
 import sys
 
+from .llm import LLMError
 from .runtime import boot
 
 PERSONAS = [
@@ -75,7 +76,11 @@ def main(argv: list[str] | None = None) -> None:
         print(f"École régénérée : {rt.db_path}")
         return
     conn = rt.connect()
-    agent = rt.agent(conn, rt.llm(getattr(args, "model", None)))
+    try:
+        llm = rt.llm(getattr(args, "model", None))
+    except LLMError as exc:
+        sys.exit(str(exc))
+    agent = rt.agent(conn, llm)
     sid = agent.new_session(args.actor)
     if args.cmd == "ask":
         turn = agent.run(sid, args.actor, args.message)

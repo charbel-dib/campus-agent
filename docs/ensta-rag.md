@@ -1,0 +1,468 @@
+# Version 0: the ENSTA RAG chatbot (`app.py`)
+
+The first version of this repository, kept as it was: a question-answering assistant over the
+real ENSTA website and documents. The campus agent (see the [main README](../README.md)) grew out
+of it and reuses its document-search approach.
+
+## Quick Start
+
+```bash
+python -m venv .venv
+# Windows:
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+python -m uvicorn app:app --host 127.0.0.1 --port 8001 --log-level info --no-access-log
+```
+This repository contains a complete **end-to-end prototype** of an ENSTA campus assistant based on **Retrieval-Augmented Generation (RAG)**:
+- an **offline pipeline** that builds a knowledge base (**web + PDFs + XLSX → FAISS index**),
+- an **online FastAPI service** that answers with **grounded citations** and a **safe refusal + escalation** workflow,
+- a **web UI + embeddable widget** for demonstration,
+- **continuous updates** with a daily 03:00 web rebuild and **hot reload** (no server restart).
+
+---
+
+## 1) What’s inside 
+
+### Root
+- `app.py` — FastAPI service (RAG + sessions + refusal + email escalation + hot reload)
+- `.env.example` — environment template
+- `requirements.txt` — Python dependencies
+- Cloudflare Tunnel files (`cloudflared`, `config.yml`, `cert.pem`) are **not** versioned: install `cloudflared` separately (see section 9). They are listed in `.gitignore`.
+
+
+### UI
+- `templates/chat.html` — main chat interface
+- `templates/demo_site.html` — demo webpage
+- `static/widget.js` — embeddable widget
+
+### Dataset + pipeline
+- `ENSTA_DATASET/01_raw/` — raw extracted data (JSONL): `web_docling.jsonl`, `pdfs_docling.jsonl`, `xlsx_courses.jsonl`, etc.
+- `ENSTA_DATASET/02_clean/` — cleaned corpora + reports (`corpus_clean.jsonl`, `clean_report_docling.json`, `*_clean.jsonl`)
+- `ENSTA_DATASET/03_chunks/chunks.jsonl` — retrieval units
+- `ENSTA_DATASET/04_index/` — FAISS + meta + `reload.flag` (`backups/` is created locally by the rebuild and is not versioned)
+- `ENSTA_DATASET/scripts/` — pipeline scripts + Task Scheduler scripts
+- `ENSTA_DATASET/logs/` — daily pipeline logs
+
+### Main scripts (used)
+- `ENSTA_DATASET/scripts/crawl_web_docling.py` — Docling web crawl → `01_raw/web_docling.jsonl`
+- `ENSTA_DATASET/scripts/doclingp.py` — clean/normalize raw → `02_clean/*_clean.jsonl`
+- `ENSTA_DATASET/scripts/merge_corpus.py` — merge → `02_clean/corpus_clean.jsonl`
+- `ENSTA_DATASET/scripts/chunk_corpus.py` — chunk → `03_chunks/chunks.jsonl`
+- `ENSTA_DATASET/scripts/embed_faiss.py` — embed + FAISS → `04_index/ensta.faiss` + `04_index/ensta_meta.jsonl`
+- `ENSTA_DATASET/scripts/run_web_daily_update.py` — daily web rebuild orchestrator
+- `ENSTA_DATASET/scripts/run_docs_manual_update.py` — manual docs rebuild orchestrator (PDF/XLSX)
+- `ENSTA_DATASET/scripts/ingest_pdfs.py` — ingest PDFs → `01_raw/pdfs_docling.jsonl`
+- `ENSTA_DATASET/scripts/ingest_xlsx_courses.py` — ingest XLSX → `01_raw/xlsx_courses.jsonl`
+- `ENSTA_DATASET/scripts/install_daily_task.ps1` — Windows Task Scheduler installer (03:00)
+
+(Other experiments are stored under `ENSTA_DATASET/scripts/unused/`.)
+
+---
+
+## 2) Requirements
+
+### OS
+- Windows 10/11 recommended (Task Scheduler workflow is included)
+- Linux is possible (replace Task Scheduler by cron/systemd)
+
+### Python
+- Python **3.10+** (3.11 tested)
+
+### Install dependencies
+Create venv, install requirements:
+
+```bash
+python -m venv .venv
+# Windows
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Optional environment variables to reduce TensorFlow logs (recommended on Windows):
+```powershell
+$env:TRANSFORMERS_NO_TF="1"
+$env:TF_CPP_MIN_LOG_LEVEL="2"
+```
+
+---
+
+## 3) Configuration (all settings)
+
+### 3.1 Create `.env`
+Copy the template:
+
+```powershell
+copy .env.example .env
+```
+
+### 3.2 Required environment variables
+These are required for the server to answer questions:
+
+| Variable | Meaning |
+|---|---|
+| `OPENAI_API_KEY` | OpenAI API key (required) |
+| `ENSTA_DATASET` | Path to `ENSTA_DATASET` directory |
+| `FAISS_INDEX_PATH` | Path to `ENSTA_DATASET/04_index/ensta.faiss` |
+| `META_JSONL_PATH` | Path to `ENSTA_DATASET/04_index/ensta_meta.jsonl` |
+
+Example (Windows):
+```env
+OPENAI_API_KEY=sk-...
+
+# Optional: the defaults point to ./ENSTA_DATASET inside the repository
+ENSTA_DATASET=./ENSTA_DATASET
+```
+
+### 3.3 RAG settings
+| Variable | Default | Meaning |
+|---|---:|---|
+| `OPENAI_MODEL` | `gpt-4o-mini` | model for answer generation |
+| `EMB_MODEL` | `intfloat/multilingual-e5-base` | query embedding model |
+| `QUERY_PREFIX` | `query:` | E5 query prefix |
+| `TOP_K` | `8` | retrieved chunks |
+| `MIN_SCORE` | `0.08` | similarity threshold (refuse below) |
+| `OPENAI_CONCURRENCY` | `6` | max parallel LLM calls |
+
+### 3.4 Hot reload (index update without restart)
+| Variable | Default | Meaning |
+|---|---:|---|
+| `RELOAD_FLAG_PATH` | `ENSTA_DATASET/04_index/reload.flag` | file touched after rebuild |
+| `RELOAD_EVERY_SECONDS` | `30` | polling interval |
+
+Behavior:
+- Offline pipeline rebuilds `ensta.faiss` + `ensta_meta.jsonl`
+- Pipeline writes/updates `reload.flag`
+- `app.py` detects mtime change → reloads index + meta in memory (no restart)
+
+### 3.5 Sessions / throttling
+| Variable | Default | Meaning |
+|---|---:|---|
+| `TTL_SECONDS` | `120` | idle timeout before close |
+| `HISTORY_MAX` | `400` | max events stored per session |
+| `RATE_LIMIT_MIN_SECONDS` | `0.25` | anti-spam throttle |
+
+### 3.6 Logging
+| Variable | Default | Meaning |
+|---|---:|---|
+| `APP_LOG_LEVEL` | `INFO` | app log level |
+| `SILENCE_UVICORN_LOGS` | `0` | if `1`, reduce uvicorn logs |
+
+Logs:
+- `logs/app.log` (rotating)
+
+### 3.7 Email escalation (SMTP)
+If you want escalation enabled, configure SMTP:
+
+| Variable | Meaning |
+|---|---|
+| `SMTP_HOST` | SMTP host (ex: `smtp.gmail.com`) |
+| `SMTP_PORT` | SMTP port (587 typical) |
+| `SMTP_USER` | SMTP username |
+| `SMTP_PASS` | SMTP password / app password |
+| `SMTP_FROM` | from address |
+| `SUPPORT_TO` | destination support mailbox |
+| `SUPPORT_SUBJECT_PREFIX` | subject prefix |
+
+Important:
+- Never commit secrets
+- Gmail requires an **App Password** (2FA)
+
+Example:
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=yourbot@gmail.com
+SMTP_PASS=YOUR_APP_PASSWORD
+SMTP_FROM=yourbot@gmail.com
+
+SUPPORT_TO=service@ensta.fr
+SUPPORT_SUBJECT_PREFIX=[ENSTA Chatbot - Ticket]
+```
+
+---
+
+## 4) Run the FastAPI service
+
+From repository root:
+
+```bash
+python -m uvicorn app:app --host 127.0.0.1 --port 8001 --log-level info --no-access-log
+```
+
+Health check:
+```bash
+curl http://127.0.0.1:8001/health
+```
+
+Open:
+- Chat UI: `http://127.0.0.1:8001/chat`
+- Demo page: `http://127.0.0.1:8001/demo-site`
+- Widget JS: `http://127.0.0.1:8001/widget.js`
+
+### Startup note
+The first load of `SentenceTransformer` may take ~20–40s on Windows. The server is reachable early, while RAG loads in the background. Check `/health` for `rag_ready=true`.
+
+---
+
+## 5) Offline pipeline (build/rebuild the index)
+
+The pipeline builds:
+**(web/pdf/xlsx) → clean → merge → chunk → embed → FAISS + meta**
+
+Scripts are under: `ENSTA_DATASET/scripts/`.
+
+### 5.1 Full build (web + docs + index)
+Run in this order:
+
+```bash
+python ENSTA_DATASET/scripts/crawl_web_docling.py
+python ENSTA_DATASET/scripts/ingest_pdfs.py
+python ENSTA_DATASET/scripts/ingest_xlsx_courses.py
+
+python ENSTA_DATASET/scripts/doclingp.py
+python ENSTA_DATASET/scripts/merge_corpus.py
+python ENSTA_DATASET/scripts/chunk_corpus.py
+python ENSTA_DATASET/scripts/embed_faiss.py
+```
+
+Outputs:
+- `ENSTA_DATASET/01_raw/web_docling.jsonl`
+- `ENSTA_DATASET/01_raw/pdfs_docling.jsonl`
+- `ENSTA_DATASET/01_raw/xlsx_courses.jsonl`
+- `ENSTA_DATASET/02_clean/*_clean.jsonl` + reports
+- `ENSTA_DATASET/02_clean/corpus_clean.jsonl`
+- `ENSTA_DATASET/03_chunks/chunks.jsonl`
+- `ENSTA_DATASET/04_index/ensta.faiss`
+- `ENSTA_DATASET/04_index/ensta_meta.jsonl`
+
+### 5.2 Daily web rebuild (recommended method)
+Run:
+```bash
+python ENSTA_DATASET/scripts/run_web_daily_update.py
+```
+
+What it does:
+- web crawl (Docling)
+- clean
+- merge with existing PDF/XLSX clean outputs
+- chunk
+- backup old index (`ENSTA_DATASET/04_index/backups/<timestamp>/`)
+- embed + new FAISS
+- atomic swap of index/meta
+- write/update `reload.flag`
+
+Logs:
+- `ENSTA_DATASET/logs/web_daily_YYYYMMDD_HHMMSS.log`
+
+### 5.3 Manual docs rebuild (PDF/XLSX)
+When you add/modify PDFs or XLSX:
+```bash
+python ENSTA_DATASET/scripts/run_docs_manual_update.py
+```
+
+What it does:
+- ingest PDFs + XLSX
+- clean
+- merge
+- chunk
+- backup
+- embed + rebuild FAISS
+- write/update `reload.flag`
+
+---
+
+## 6) Continuous updates (Windows Task Scheduler)
+
+A daily task runs the web pipeline every day at **03:00**.
+
+### 6.1 Install task
+```powershell
+powershell -ExecutionPolicy Bypass -File .\ENSTA_DATASET\scripts\install_daily_task.ps1 `
+  -ProjectRoot "C:\path\to\repo\ENSTA_DATASET" `
+  -PythonExe "C:\path\to\repo\.venv\Scripts\python.exe"
+```
+
+Task name:
+- `ACAENSTA_WebDailyUpdate`
+
+### 6.2 Status / enable / run now
+```powershell
+Get-ScheduledTask -TaskName "ACAENSTA_WebDailyUpdate" | Select TaskName, State
+Enable-ScheduledTask -TaskName "ACAENSTA_WebDailyUpdate"
+Start-ScheduledTask -TaskName "ACAENSTA_WebDailyUpdate"
+```
+
+### 6.3 Remove and recreate (if you changed paths)
+```powershell
+Unregister-ScheduledTask -TaskName "ACAENSTA_WebDailyUpdate" -Confirm:$false
+powershell -ExecutionPolicy Bypass -File .\ENSTA_DATASET\scripts\install_daily_task.ps1
+```
+
+### Troubleshooting
+- **“The task is disabled”** → `Enable-ScheduledTask`
+- **“The system cannot find the file specified”** → edit `install_daily_task.ps1`:
+  - `$ProjectRoot`
+  - `$PythonExe` (must point to your venv python)
+  - `$ScriptPath`
+  Then reinstall.
+
+---
+
+## 7) Runtime behavior (how the assistant works)
+
+### 7.1 RAG flow
+For each user message:
+1. Handle greeting / meta / gibberish without retrieval
+2. Embed query (`EMB_MODEL`, `QUERY_PREFIX`)
+3. FAISS search (`TOP_K`)
+4. If best score < `MIN_SCORE` → refuse
+5. Else → call OpenAI with strict grounding rules and inline citations
+
+### 7.2 Safe refusal + escalation
+If refused:
+- assistant asks the user for an email address
+- if SMTP configured → sends ticket to `SUPPORT_TO` with:
+  - session id
+  - unanswered question
+  - recent transcript excerpt
+
+### 7.3 Hot reload
+After daily rebuild:
+- pipeline updates `reload.flag`
+- server reloads `ensta.faiss` + `ensta_meta.jsonl` in memory
+- no restart required
+
+---
+
+## 8) UI + Widget
+
+### 8.1 Chat UI
+- `/chat` serves `templates/chat.html`
+
+### 8.2 Demo page
+- `/demo-site` serves `templates/demo_site.html`
+
+### 8.3 Widget
+- `/widget.js` serves `static/widget.js`
+
+Widget purpose:
+- simulate integration on an institutional website without modifying the site layout
+
+---
+
+## 9) Cloudflare Tunnel exposure
+
+Install `cloudflared` from Cloudflare's official releases (it is not shipped in this repository), then run it from its install location.
+
+### 9.1 Quick tunnel
+```powershell
+cloudflared tunnel --url http://127.0.0.1:8001
+```
+
+### 9.2 Known limitation
+Some campus networks block Cloudflare tunnel traffic. If blocked:
+- test from a hotspot
+- or run on a VPS/cloud host
+
+---
+
+## 10) Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+The tests cover language detection, small-talk and gibberish filtering, history pruning, retrieval
+mapping, source formatting and the HTTP endpoints. They need neither the embedding model, the FAISS
+index nor an API key, and run on every push (GitHub Actions).
+
+## 11) Evaluation
+
+`eval/questions.jsonl` holds 60 questions written from the indexed corpus: 48 answerable ones (41 in
+French, 7 in English over French sources; web pages, course sheets and PDFs), each with its expected
+source and the facts a correct answer must contain, plus 12 out-of-scope questions the assistant
+must refuse. Every expected fact was checked against its source passage; `eval/review.py` is the
+manual review pass.
+
+```bash
+python eval/review.py                    # review the questions
+python eval/run_eval.py                  # retrieval: hit@k and MRR, no API key
+python eval/run_eval.py --rerank         # same, with a multilingual cross-encoder reranker
+python eval/run_eval.py --answers        # answers: correct facts, citations, refusals (OpenAI key)
+```
+
+Results are written to `eval/results/`.
+
+### Results (November 2026, retrieval)
+
+Answerable questions (48). Hit@k: the expected source is among the first k passages; top 8 is what
+the language model receives.
+
+| Configuration | Hit@1 | Hit@3 | Hit@8 | MRR@8 |
+|---|---:|---:|---:|---:|
+| Dense retrieval (`multilingual-e5-base`, as deployed) | 68.8 % | 81.2 % | 93.8 % | 0.770 |
+| + cross-encoder reranking of the top 30 (`mmarco-mMiniLMv2-L12`) | 70.8 % | 89.6 % | 95.8 % | 0.806 |
+
+What the numbers say:
+
+- **Retrieval is not the bottleneck.** The expected source reaches the model for 45 of 48 questions
+  (46 with reranking). English questions over French pages do as well as French ones (7/7 in the top 8).
+- **Reranking mainly improves the top 3** (+8.4 points). With 48 questions, one question is worth
+  2.1 points, so the other differences are within noise.
+- **The similarity threshold does not refuse anything.** `MIN_SCORE=0.08` refused 0 of the 12
+  out-of-scope questions: e5 scores sit between 0.75 and 0.91 for every query, so refusals currently
+  rely on the language model alone. On this set, a threshold of 0.848 would separate answerable and
+  out-of-scope questions with 90.6 % balanced accuracy, but it was fitted on the same questions;
+  it needs a held-out set before going into production.
+- **PDF brochures are the weak source** (1 of 3 in the top 8 without reranking, 2 with): their tables
+  and lists are split into chunks that match questions poorly. Two questions are never retrieved:
+  q024 (course prerequisites, a course sheet) and q028 (an end-of-studies project, a PDF).
+
+Reranking is available in the app: set `RERANK_MODEL=cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`
+(off by default; it adds a ~470 MB model and some CPU time per question). The evaluation calls the
+same `search_passages` function as the server, so both always measure the same code.
+
+To check a threshold without reusing the questions that chose it, `eval/heldout.jsonl` holds 24
+new questions (12 answerable from sources absent from the main set, 12 out of scope):
+
+```bash
+python eval/review.py eval/heldout.jsonl
+python eval/run_eval.py --questions eval/heldout.jsonl --validated-only --min-score 0.848
+```
+
+### Results on the held-out questions
+
+The 24 held-out questions (23 kept after review) come from sources absent from the main set.
+
+| Set | Hit@1 | Hit@3 | Hit@8 | MRR@8 |
+|---|---:|---:|---:|---:|
+| Main set, 48 answerable | 68.8 % | 81.2 % | 93.8 % | 0.770 |
+| Held-out set, 12 answerable | 33.3 % | 58.3 % | 83.3 % | 0.487 |
+
+Retrieval is clearly weaker on the held-out questions. The main set was written from passages
+whose facts were easy to spot, so its scores are optimistic; across all 60 answerable questions,
+the expected source reaches the model in 55 cases (91.7 %).
+
+Refusal threshold on the best dense score (answerable questions kept / out-of-scope refused):
+
+| Threshold | Main set | Held-out set |
+|---|---|---|
+| 0.08 (former default) | 48/48 kept · 0/12 refused | 12/12 kept · 0/11 refused |
+| 0.82 | 44/48 · 8/12 | 11/12 · 9/11 |
+| **0.84 (new default)** | **44/48 · 10/12** | **10/12 · 10/11** |
+| 0.848 (best on the main set) | 39/48 · 11/12 | 9/12 · 11/11 |
+
+0.848, chosen on the main set, refused every unseen out-of-scope question but also a quarter of the
+answerable ones. 0.84 is the default because it refuses most off-topic questions while keeping
+about 9 in 10 answerable ones; it was picked after seeing both sets, so a fresh set would be needed
+to confirm it. Questions above the threshold can still be refused by the language model.
+
+Not measured yet: answer correctness, citation accuracy and refusal rate with the language model
+(`--answers`), which need an API quota.
+
+## Licence
+
+Code: MIT (see [LICENSE](LICENSE)). The documents in `ENSTA_DATASET` come from public ENSTA pages and
+files and remain the property of ENSTA; they are included only to make the prototype reproducible.

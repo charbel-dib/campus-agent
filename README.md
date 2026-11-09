@@ -1,465 +1,206 @@
-# ACA-ENSTA - ENSTA Campus Assistant
+# Ker Avel campus agent
 
-[![Tests](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml/badge.svg)](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml) 
-## Quick Start
+[![Tests](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml/badge.svg)](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml)
 
-```bash
-python -m venv .venv
-# Windows:
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-copy .env.example .env
-python -m uvicorn app:app --host 127.0.0.1 --port 8001 --log-level info --no-access-log
-```
-This repository contains a complete **end-to-end prototype** of an ENSTA campus assistant based on **Retrieval-Augmented Generation (RAG)**:
-- an **offline pipeline** that builds a knowledge base (**web + PDFs + XLSX → FAISS index**),
-- an **online FastAPI service** that answers with **grounded citations** and a **safe refusal + escalation** workflow,
-- a **web UI + embeddable widget** for demonstration,
-- **continuous updates** with a daily 03:00 web rebuild and **hot reload** (no server restart).
+An AI agent for an engineering school: it reads calendars, finds common free slots, books rooms
+and appointments, moves classes and tells the students, handles absence justifications, issues
+certificates and answers from the school rules, with citations. It acts with the rights of the
+person signed in, and **nothing changes until that person confirms**.
 
----
+It runs on a fictional school, *École d'ingénieurs Ker Avel*: 290 students, 30 teachers, 3 staff,
+26 rooms and a full semester, all generated. The same tools are served to a web interface, through
+the Claude API, and to any MCP client such as Claude Desktop.
 
-## 1) What’s inside 
+This repository started as a RAG chatbot over the ENSTA website ([version 0](docs/ensta-rag.md),
+still in `app.py`). The agent is the next step: from answering questions to doing the work.
 
-### Root
-- `app.py` — FastAPI service (RAG + sessions + refusal + email escalation + hot reload)
-- `.env.example` — environment template
-- `requirements.txt` — Python dependencies
-- Cloudflare Tunnel files (`cloudflared`, `config.yml`, `cert.pem`) are **not** versioned: install `cloudflared` separately (see section 9). They are listed in `.gitignore`.
+<!-- DEMO -->
 
+## In one minute
 
-### UI
-- `templates/chat.html` — main chat interface
-- `templates/demo_site.html` — demo webpage
-- `static/widget.js` — embeddable widget
+<!-- RESULTS -->
 
-### Dataset + pipeline
-- `ENSTA_DATASET/01_raw/` — raw extracted data (JSONL): `web_docling.jsonl`, `pdfs_docling.jsonl`, `xlsx_courses.jsonl`, etc.
-- `ENSTA_DATASET/02_clean/` — cleaned corpora + reports (`corpus_clean.jsonl`, `clean_report_docling.json`, `*_clean.jsonl`)
-- `ENSTA_DATASET/03_chunks/chunks.jsonl` — retrieval units
-- `ENSTA_DATASET/04_index/` — FAISS + meta + `reload.flag` (`backups/` is created locally by the rebuild and is not versioned)
-- `ENSTA_DATASET/scripts/` — pipeline scripts + Task Scheduler scripts
-- `ENSTA_DATASET/logs/` — daily pipeline logs
+- **18 tools, filtered by role.** A student books a study room or an appointment, a teacher
+  moves a class for their groups, the school office reviews justifications.
+- **Every write waits for the user.** The agent proposes, the user sees a slip with the exact
+  action and confirms; the server then checks every rule again before writing.
+- **Permissions live on the server**, not in the prompt: a student who talks the model into
+  asking for someone else's grades still gets a refusal from the tool.
+- **Measured**: 29 scenarios checked on the database after each run, plus 87 tests without any
+  model call.
 
-### Main scripts (used)
-- `ENSTA_DATASET/scripts/crawl_web_docling.py` — Docling web crawl → `01_raw/web_docling.jsonl`
-- `ENSTA_DATASET/scripts/doclingp.py` — clean/normalize raw → `02_clean/*_clean.jsonl`
-- `ENSTA_DATASET/scripts/merge_corpus.py` — merge → `02_clean/corpus_clean.jsonl`
-- `ENSTA_DATASET/scripts/chunk_corpus.py` — chunk → `03_chunks/chunks.jsonl`
-- `ENSTA_DATASET/scripts/embed_faiss.py` — embed + FAISS → `04_index/ensta.faiss` + `04_index/ensta_meta.jsonl`
-- `ENSTA_DATASET/scripts/run_web_daily_update.py` — daily web rebuild orchestrator
-- `ENSTA_DATASET/scripts/run_docs_manual_update.py` — manual docs rebuild orchestrator (PDF/XLSX)
-- `ENSTA_DATASET/scripts/ingest_pdfs.py` — ingest PDFs → `01_raw/pdfs_docling.jsonl`
-- `ENSTA_DATASET/scripts/ingest_xlsx_courses.py` — ingest XLSX → `01_raw/xlsx_courses.jsonl`
-- `ENSTA_DATASET/scripts/install_daily_task.ps1` — Windows Task Scheduler installer (03:00)
-
-(Other experiments are stored under `ENSTA_DATASET/scripts/unused/`.)
-
----
-
-## 2) Requirements
-
-### OS
-- Windows 10/11 recommended (Task Scheduler workflow is included)
-- Linux is possible (replace Task Scheduler by cron/systemd)
-
-### Python
-- Python **3.10+** (3.11 tested)
-
-### Install dependencies
-Create venv, install requirements:
+## Try it
 
 ```bash
-python -m venv .venv
-# Windows
-.\.venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-agent.txt
+echo ANTHROPIC_API_KEY=sk-ant-... > .env      # set a monthly spend limit in the Anthropic console first
+
+python -m campus_agent.cli ask --as stu-0001 "Prends-moi un rendez-vous avec M. Le Goff" -v
+uvicorn campus_agent.web:app --port 8002      # then open http://127.0.0.1:8002
 ```
 
-Optional environment variables to reduce TensorFlow logs (recommended on Windows):
-```powershell
-$env:TRANSFORMERS_NO_TF="1"
-$env:TF_CPP_MIN_LOG_LEVEL="2"
-```
+The school is generated on first start (`campus_data/campus.db`, about 0.2 s). `python -m
+campus_agent.cli reset` regenerates it. Set `CAMPUS_NOW=2026-11-16T09:00` to pin the clock, as
+the evaluation does.
 
----
+With Docker: `docker build -t campus-agent . && docker run -p 8000:8000 -e ANTHROPIC_API_KEY=...
+-e CAMPUS_SECRET_KEY=... campus-agent`.
 
-## 3) Configuration (all settings)
+### Personas of the demo
 
-### 3.1 Create `.env`
-Copy the template:
-
-```powershell
-copy .env.example .env
-```
-
-### 3.2 Required environment variables
-These are required for the server to answer questions:
-
-| Variable | Meaning |
-|---|---|
-| `OPENAI_API_KEY` | OpenAI API key (required) |
-| `ENSTA_DATASET` | Path to `ENSTA_DATASET` directory |
-| `FAISS_INDEX_PATH` | Path to `ENSTA_DATASET/04_index/ensta.faiss` |
-| `META_JSONL_PATH` | Path to `ENSTA_DATASET/04_index/ensta_meta.jsonl` |
-
-Example (Windows):
-```env
-OPENAI_API_KEY=sk-...
-
-# Optional: the defaults point to ./ENSTA_DATASET inside the repository
-ENSTA_DATASET=./ENSTA_DATASET
-```
-
-### 3.3 RAG settings
-| Variable | Default | Meaning |
-|---|---:|---|
-| `OPENAI_MODEL` | `gpt-4o-mini` | model for answer generation |
-| `EMB_MODEL` | `intfloat/multilingual-e5-base` | query embedding model |
-| `QUERY_PREFIX` | `query:` | E5 query prefix |
-| `TOP_K` | `8` | retrieved chunks |
-| `MIN_SCORE` | `0.08` | similarity threshold (refuse below) |
-| `OPENAI_CONCURRENCY` | `6` | max parallel LLM calls |
-
-### 3.4 Hot reload (index update without restart)
-| Variable | Default | Meaning |
-|---|---:|---|
-| `RELOAD_FLAG_PATH` | `ENSTA_DATASET/04_index/reload.flag` | file touched after rebuild |
-| `RELOAD_EVERY_SECONDS` | `30` | polling interval |
-
-Behavior:
-- Offline pipeline rebuilds `ensta.faiss` + `ensta_meta.jsonl`
-- Pipeline writes/updates `reload.flag`
-- `app.py` detects mtime change → reloads index + meta in memory (no restart)
-
-### 3.5 Sessions / throttling
-| Variable | Default | Meaning |
-|---|---:|---|
-| `TTL_SECONDS` | `120` | idle timeout before close |
-| `HISTORY_MAX` | `400` | max events stored per session |
-| `RATE_LIMIT_MIN_SECONDS` | `0.25` | anti-spam throttle |
-
-### 3.6 Logging
-| Variable | Default | Meaning |
-|---|---:|---|
-| `APP_LOG_LEVEL` | `INFO` | app log level |
-| `SILENCE_UVICORN_LOGS` | `0` | if `1`, reduce uvicorn logs |
-
-Logs:
-- `logs/app.log` (rotating)
-
-### 3.7 Email escalation (SMTP)
-If you want escalation enabled, configure SMTP:
-
-| Variable | Meaning |
-|---|---|
-| `SMTP_HOST` | SMTP host (ex: `smtp.gmail.com`) |
-| `SMTP_PORT` | SMTP port (587 typical) |
-| `SMTP_USER` | SMTP username |
-| `SMTP_PASS` | SMTP password / app password |
-| `SMTP_FROM` | from address |
-| `SUPPORT_TO` | destination support mailbox |
-| `SUPPORT_SUBJECT_PREFIX` | subject prefix |
-
-Important:
-- Never commit secrets
-- Gmail requires an **App Password** (2FA)
-
-Example:
-```env
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=yourbot@gmail.com
-SMTP_PASS=YOUR_APP_PASSWORD
-SMTP_FROM=yourbot@gmail.com
-
-SUPPORT_TO=service@ensta.fr
-SUPPORT_SUBJECT_PREFIX=[ENSTA Chatbot - Ticket]
-```
-
----
-
-## 4) Run the FastAPI service
-
-From repository root:
-
-```bash
-python -m uvicorn app:app --host 127.0.0.1 --port 8001 --log-level info --no-access-log
-```
-
-Health check:
-```bash
-curl http://127.0.0.1:8001/health
-```
-
-Open:
-- Chat UI: `http://127.0.0.1:8001/chat`
-- Demo page: `http://127.0.0.1:8001/demo-site`
-- Widget JS: `http://127.0.0.1:8001/widget.js`
-
-### Startup note
-The first load of `SentenceTransformer` may take ~20–40s on Windows. The server is reachable early, while RAG loads in the background. Check `/health` for `rag_ready=true`.
-
----
-
-## 5) Offline pipeline (build/rebuild the index)
-
-The pipeline builds:
-**(web/pdf/xlsx) → clean → merge → chunk → embed → FAISS + meta**
-
-Scripts are under: `ENSTA_DATASET/scripts/`.
-
-### 5.1 Full build (web + docs + index)
-Run in this order:
-
-```bash
-python ENSTA_DATASET/scripts/crawl_web_docling.py
-python ENSTA_DATASET/scripts/ingest_pdfs.py
-python ENSTA_DATASET/scripts/ingest_xlsx_courses.py
-
-python ENSTA_DATASET/scripts/doclingp.py
-python ENSTA_DATASET/scripts/merge_corpus.py
-python ENSTA_DATASET/scripts/chunk_corpus.py
-python ENSTA_DATASET/scripts/embed_faiss.py
-```
-
-Outputs:
-- `ENSTA_DATASET/01_raw/web_docling.jsonl`
-- `ENSTA_DATASET/01_raw/pdfs_docling.jsonl`
-- `ENSTA_DATASET/01_raw/xlsx_courses.jsonl`
-- `ENSTA_DATASET/02_clean/*_clean.jsonl` + reports
-- `ENSTA_DATASET/02_clean/corpus_clean.jsonl`
-- `ENSTA_DATASET/03_chunks/chunks.jsonl`
-- `ENSTA_DATASET/04_index/ensta.faiss`
-- `ENSTA_DATASET/04_index/ensta_meta.jsonl`
-
-### 5.2 Daily web rebuild (recommended method)
-Run:
-```bash
-python ENSTA_DATASET/scripts/run_web_daily_update.py
-```
-
-What it does:
-- web crawl (Docling)
-- clean
-- merge with existing PDF/XLSX clean outputs
-- chunk
-- backup old index (`ENSTA_DATASET/04_index/backups/<timestamp>/`)
-- embed + new FAISS
-- atomic swap of index/meta
-- write/update `reload.flag`
-
-Logs:
-- `ENSTA_DATASET/logs/web_daily_YYYYMMDD_HHMMSS.log`
-
-### 5.3 Manual docs rebuild (PDF/XLSX)
-When you add/modify PDFs or XLSX:
-```bash
-python ENSTA_DATASET/scripts/run_docs_manual_update.py
-```
-
-What it does:
-- ingest PDFs + XLSX
-- clean
-- merge
-- chunk
-- backup
-- embed + rebuild FAISS
-- write/update `reload.flag`
-
----
-
-## 6) Continuous updates (Windows Task Scheduler)
-
-A daily task runs the web pipeline every day at **03:00**.
-
-### 6.1 Install task
-```powershell
-powershell -ExecutionPolicy Bypass -File .\ENSTA_DATASET\scripts\install_daily_task.ps1 `
-  -ProjectRoot "C:\path\to\repo\ENSTA_DATASET" `
-  -PythonExe "C:\path\to\repo\.venv\Scripts\python.exe"
-```
-
-Task name:
-- `ACAENSTA_WebDailyUpdate`
-
-### 6.2 Status / enable / run now
-```powershell
-Get-ScheduledTask -TaskName "ACAENSTA_WebDailyUpdate" | Select TaskName, State
-Enable-ScheduledTask -TaskName "ACAENSTA_WebDailyUpdate"
-Start-ScheduledTask -TaskName "ACAENSTA_WebDailyUpdate"
-```
-
-### 6.3 Remove and recreate (if you changed paths)
-```powershell
-Unregister-ScheduledTask -TaskName "ACAENSTA_WebDailyUpdate" -Confirm:$false
-powershell -ExecutionPolicy Bypass -File .\ENSTA_DATASET\scripts\install_daily_task.ps1
-```
-
-### Troubleshooting
-- **“The task is disabled”** → `Enable-ScheduledTask`
-- **“The system cannot find the file specified”** → edit `install_daily_task.ps1`:
-  - `$ProjectRoot`
-  - `$PythonExe` (must point to your venv python)
-  - `$ScriptPath`
-  Then reinstall.
-
----
-
-## 7) Runtime behavior (how the assistant works)
-
-### 7.1 RAG flow
-For each user message:
-1. Handle greeting / meta / gibberish without retrieval
-2. Embed query (`EMB_MODEL`, `QUERY_PREFIX`)
-3. FAISS search (`TOP_K`)
-4. If best score < `MIN_SCORE` → refuse
-5. Else → call OpenAI with strict grounding rules and inline citations
-
-### 7.2 Safe refusal + escalation
-If refused:
-- assistant asks the user for an email address
-- if SMTP configured → sends ticket to `SUPPORT_TO` with:
-  - session id
-  - unanswered question
-  - recent transcript excerpt
-
-### 7.3 Hot reload
-After daily rebuild:
-- pipeline updates `reload.flag`
-- server reloads `ensta.faiss` + `ensta_meta.jsonl` in memory
-- no restart required
-
----
-
-## 8) UI + Widget
-
-### 8.1 Chat UI
-- `/chat` serves `templates/chat.html`
-
-### 8.2 Demo page
-- `/demo-site` serves `templates/demo_site.html`
-
-### 8.3 Widget
-- `/widget.js` serves `static/widget.js`
-
-Widget purpose:
-- simulate integration on an institutional website without modifying the site layout
-
----
-
-## 9) Cloudflare Tunnel exposure
-
-Install `cloudflared` from Cloudflare's official releases (it is not shipped in this repository), then run it from its install location.
-
-### 9.1 Quick tunnel
-```powershell
-cloudflared tunnel --url http://127.0.0.1:8001
-```
-
-### 9.2 Known limitation
-Some campus networks block Cloudflare tunnel traffic. If blocked:
-- test from a hotspot
-- or run on a VPS/cloud host
-
----
-
-## 10) Tests
-
-```bash
-pip install -r requirements-dev.txt
-python -m pytest -q
-```
-
-The tests cover language detection, small-talk and gibberish filtering, history pruning, retrieval
-mapping, source formatting and the HTTP endpoints. They need neither the embedding model, the FAISS
-index nor an API key, and run on every push (GitHub Actions).
-
-## 11) Evaluation
-
-`eval/questions.jsonl` holds 60 questions written from the indexed corpus: 48 answerable ones (41 in
-French, 7 in English over French sources; web pages, course sheets and PDFs), each with its expected
-source and the facts a correct answer must contain, plus 12 out-of-scope questions the assistant
-must refuse. Every expected fact was checked against its source passage; `eval/review.py` is the
-manual review pass.
-
-```bash
-python eval/review.py                    # review the questions
-python eval/run_eval.py                  # retrieval: hit@k and MRR, no API key
-python eval/run_eval.py --rerank         # same, with a multilingual cross-encoder reranker
-python eval/run_eval.py --answers        # answers: correct facts, citations, refusals (OpenAI key)
-```
-
-Results are written to `eval/results/`.
-
-### Results (November 2026, retrieval)
-
-Answerable questions (48). Hit@k: the expected source is among the first k passages; top 8 is what
-the language model receives.
-
-| Configuration | Hit@1 | Hit@3 | Hit@8 | MRR@8 |
-|---|---:|---:|---:|---:|
-| Dense retrieval (`multilingual-e5-base`, as deployed) | 68.8 % | 81.2 % | 93.8 % | 0.770 |
-| + cross-encoder reranking of the top 30 (`mmarco-mMiniLMv2-L12`) | 70.8 % | 89.6 % | 95.8 % | 0.806 |
-
-What the numbers say:
-
-- **Retrieval is not the bottleneck.** The expected source reaches the model for 45 of 48 questions
-  (46 with reranking). English questions over French pages do as well as French ones (7/7 in the top 8).
-- **Reranking mainly improves the top 3** (+8.4 points). With 48 questions, one question is worth
-  2.1 points, so the other differences are within noise.
-- **The similarity threshold does not refuse anything.** `MIN_SCORE=0.08` refused 0 of the 12
-  out-of-scope questions: e5 scores sit between 0.75 and 0.91 for every query, so refusals currently
-  rely on the language model alone. On this set, a threshold of 0.848 would separate answerable and
-  out-of-scope questions with 90.6 % balanced accuracy, but it was fitted on the same questions;
-  it needs a held-out set before going into production.
-- **PDF brochures are the weak source** (1 of 3 in the top 8 without reranking, 2 with): their tables
-  and lists are split into chunks that match questions poorly. Two questions are never retrieved:
-  q024 (course prerequisites, a course sheet) and q028 (an end-of-studies project, a PDF).
-
-Reranking is available in the app: set `RERANK_MODEL=cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`
-(off by default; it adds a ~470 MB model and some CPU time per question). The evaluation calls the
-same `search_passages` function as the server, so both always measure the same code.
-
-To check a threshold without reusing the questions that chose it, `eval/heldout.jsonl` holds 24
-new questions (12 answerable from sources absent from the main set, 12 out of scope):
-
-```bash
-python eval/review.py eval/heldout.jsonl
-python eval/run_eval.py --questions eval/heldout.jsonl --validated-only --min-score 0.848
-```
-
-### Results on the held-out questions
-
-The 24 held-out questions (23 kept after review) come from sources absent from the main set.
-
-| Set | Hit@1 | Hit@3 | Hit@8 | MRR@8 |
-|---|---:|---:|---:|---:|
-| Main set, 48 answerable | 68.8 % | 81.2 % | 93.8 % | 0.770 |
-| Held-out set, 12 answerable | 33.3 % | 58.3 % | 83.3 % | 0.487 |
-
-Retrieval is clearly weaker on the held-out questions. The main set was written from passages
-whose facts were easy to spot, so its scores are optimistic; across all 60 answerable questions,
-the expected source reaches the model in 55 cases (91.7 %).
-
-Refusal threshold on the best dense score (answerable questions kept / out-of-scope refused):
-
-| Threshold | Main set | Held-out set |
+| Id | Person | Try |
 |---|---|---|
-| 0.08 (former default) | 48/48 kept · 0/12 refused | 12/12 kept · 0/11 refused |
-| 0.82 | 44/48 · 8/12 | 11/12 · 9/11 |
-| **0.84 (new default)** | **44/48 · 10/12** | **10/12 · 10/11** |
-| 0.848 (best on the main set) | 39/48 · 11/12 | 9/12 · 11/11 |
+| `stu-0001` | Inès Haddad, 3rd year, AI track | « J'étais absente au TP de vendredi, j'ai un certificat médical » |
+| `stu-0003` | Maël Guivarc'h, 1st year | « Combien de temps ai-je pour justifier une absence ? » |
+| `tch-001` | Yann Le Goff, machine learning | « Je ne peux pas assurer mon TP de vendredi : déplace-le la semaine prochaine et préviens les étudiants » |
+| `tch-008` | Hugo Lefèvre, calculus | « Organise un rattrapage de deux heures pour le groupe 1A-TD1 la semaine prochaine » |
+| `stf-01` | Claire Morvan, school office | « Quelles justifications d'absence sont en attente ? » |
 
-0.848, chosen on the main set, refused every unseen out-of-scope question but also a quarter of the
-answerable ones. 0.84 is the default because it refuses most off-topic questions while keeping
-about 9 in 10 answerable ones; it was picked after seeing both sets, so a fresh set would be needed
-to confirm it. Questions above the threshold can still be refused by the language model.
+## What the agent can do
 
-Not measured yet: answer correctness, citation accuracy and refusal rate with the language model
-(`--answers`), which need an API quota.
+| Tool | Student | Teacher | Office | Writes |
+|---|:-:|:-:|:-:|:-:|
+| `search_people`, `search_courses` | ✓ | ✓ | ✓ | |
+| `get_schedule` (own in detail; others as busy/free only) | ✓ | ✓ | ✓ | |
+| `find_free_slots` (people, groups, a free room) | ✓ | ✓ | ✓ | |
+| `find_available_rooms` | study rooms | teaching rooms | all | |
+| `get_grades` | own, published | own courses | all | |
+| `get_absences` | own | own courses | all | |
+| `search_documents` (school rules, cited) | ✓ | ✓ | ✓ | |
+| `get_messages`, `list_tickets` | ✓ | ✓ | ✓ | |
+| `generate_certificate` (PDF) | own | | ✓ | |
+| `create_event` | study room, appointment in office hours | classes for own groups, meetings | ✓ | ✓ |
+| `update_event`, `cancel_event` (participants notified) | own events | own courses | ✓ | ✓ |
+| `justify_absence` (within five working days) | ✓ | | | ✓ |
+| `review_absence` | | | ✓ | ✓ |
+| `send_announcement` | | own groups | ✓ | ✓ |
+| `create_ticket` | ✓ | ✓ | ✓ | ✓ |
 
-## Licence
+The school rules the tools enforce are the ones written in its documents
+([`campus_agent/data/docs`](campus_agent/data/docs)): study rooms two hours at most and once a
+day, appointments of 15 to 30 minutes inside a teacher's office hours, no class on Wednesday
+afternoon, justification within five working days, a refusal always explained, and so on.
 
-Code: MIT (see [LICENSE](LICENSE)). The documents in `ENSTA_DATASET` come from public ENSTA pages and
-files and remain the property of ENSTA; they are included only to make the prototype reproducible.
+## How it works
+
+```mermaid
+flowchart LR
+    UI[Web interface] -->|HTTP| API[campus_agent.web]
+    CD[Claude Desktop / MCP client] -->|MCP stdio| MCP[campus_agent.mcp_server]
+    API --> AG[Agent loop<br/>campus_agent.agent]
+    AG <-->|Messages API, tool use| CL[(Claude)]
+    AG --> TR[Tool registry<br/>campus_agent.tools]
+    MCP --> TR
+    TR --> DOM[Business rules and permissions<br/>campus_agent.domain]
+    DOM --> DB[(SQLite: school, pending actions, audit log)]
+    DOM --> DOCS[School rules, BM25 / E5 search]
+```
+
+One registry describes each tool once (schema, roles, read or write). The agent, the MCP server
+and the evaluation all go through it, so the rules cannot drift between interfaces.
+
+**Confirmation of writes.** A write tool never runs from the model's call. The registry validates
+it in a dry run, stores a *pending action* with a summary written by the server (not by the
+model), and returns « waiting for confirmation » to the model. Only the user's click runs it, and
+the business function checks everything again at that moment: if the slot was taken meanwhile,
+the action fails cleanly and the agent is told why.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Agent
+    participant C as Claude
+    participant T as Tools
+    U->>A: Move my Friday lab to next week
+    A->>C: request + tools for this role
+    C->>T: get_schedule, find_free_slots
+    C->>T: update_event(...)
+    T-->>C: pending action #12 (nothing written)
+    A-->>U: reply + slip « Move … and notify 30 people »
+    U->>A: Confirm #12
+    A->>T: run #12, rules checked again
+    T-->>A: done, 30 students notified
+    A->>C: [Decision] confirmed, result
+    C-->>U: summary
+```
+
+In an MCP client, the client's own approval step plays that role: writes run when called, and
+every write tool carries `destructiveHint` so the client asks the user first.
+
+## Built for production, not only for the demo
+
+- **Permissions from the token, never from the conversation.** The web API signs a token for the
+  person (a demo login here; the school's single sign-on in production). Every business function
+  checks what this person may see or change.
+- **Data minimisation (GDPR).** Other people's calendars come back as busy/free only. A student sees
+  other students' names and groups, not their e-mail. Free text in the audit log is truncated.
+- **Prompt injection.** Text written by users (event notes, messages) comes back to the model
+  labelled as user data, and the instructions say it is never an order. Even when the model is
+  fooled, the attacker's text cannot widen the user's rights, and every write still needs the
+  user's click. Three evaluation scenarios plant such text.
+- **Audit trail.** Every tool call is logged with who, what, through which channel and with which
+  outcome (`ok`, `pending`, `executed`, `denied`, `conflict`…); the office sees it in the interface.
+- **Cost control.** Prompt caching of the tools, instructions and conversation; a step cap per
+  turn; a budget per conversation and per day; the cost of each exchange computed from the
+  published prices and shown to the user.
+- **Robustness.** Retries with back-off on rate limits and overloads, timeouts, tool errors
+  returned to the model so it can recover, history trimmed only on turn boundaries.
+- **Engineering.** Typed settings from the environment, a dependency-light core (standard library,
+  `requests`, `reportlab`), 87 tests, CI that also builds the Docker image and probes it,
+  non-root container with a health check.
+
+## Evaluation
+
+`eval/agent_scenarios.json` holds 29 scenarios in seven categories: reading, rules (with the
+expected citation), planning (actions confirmed by the harness), permissions, ambiguous requests,
+conflicts and injection. Each runs on a fresh copy of the school; the checks look at the tools
+called, the actions proposed, **the database afterwards** and the reply. No model grades another.
+
+```bash
+python eval/run_agent_eval.py --model claude-haiku-5-5
+python eval/run_agent_eval.py --model claude-sonnet-5-5
+```
+
+<!-- EVAL -->
+
+## Use it from Claude Desktop
+
+Add the server to Claude Desktop's configuration (`claude_desktop_config.json`), choosing who it acts for:
+
+```json
+{
+  "mcpServers": {
+    "ker-avel": {
+      "command": "python",
+      "args": ["-m", "campus_agent.mcp_server", "--as", "tch-001"],
+      "env": { "PYTHONPATH": "C:/path/to/ensta_chatbot" }
+    }
+  }
+}
+```
+
+## Repository
+
+| Path | What |
+|---|---|
+| `campus_agent/domain/` | Business rules and permissions: calendar, academics, messaging, documents, audit |
+| `campus_agent/tools.py` | Tool registry, validation, pending actions and confirmation |
+| `campus_agent/agent.py`, `llm.py` | Agent loop, Claude client, cost accounting |
+| `campus_agent/web.py`, `static/` | HTTP API and interface |
+| `campus_agent/mcp_server.py` | MCP server |
+| `campus_agent/seed.py`, `data/docs/` | Generated school and its written rules |
+| `eval/run_agent_eval.py` | Scenario evaluation |
+| `tests/` | Tests (agent, tools, rules, web, MCP, evaluation harness, and the v0 RAG) |
+| `app.py`, `ENSTA_DATASET/` | Version 0, the ENSTA RAG ([its README](docs/ensta-rag.md)) |
+
+## Limits and next steps
+
+- SQLite and an in-memory rate limiter fit one process; several workers need PostgreSQL and a
+  shared store.
+- The calendar is the school's own. An adapter to Google Calendar or Microsoft 365 would sit behind
+  the same business functions.
+- The demo login stands in for single sign-on; the MCP server acts for one person set at start, where
+  a remote deployment would read the person from an OAuth token.
+- Internship agreements and grade entry are documented in the rules but not yet tools.
+
+MIT licence. The school, its people and its data are fictional.
