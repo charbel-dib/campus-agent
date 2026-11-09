@@ -55,8 +55,11 @@ async function api(path, options = {}) {
   const headers = { "content-type": "application/json" };
   if (state.token) headers.authorization = `Bearer ${state.token}`;
   const res = await fetch(path, { ...options, headers });
-  if (res.status === 401) { signOut(); throw new Error("Session expirée : choisis à nouveau un profil."); }
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && state.token) {
+    signOut(data.error || "Session expirée : choisis à nouveau un profil.");
+    throw new Error(data.error || "Session expirée.");
+  }
   if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
   return data;
 }
@@ -91,7 +94,7 @@ function renderText(text) {
 /* ---------------------------------------------------------------- landing */
 
 async function showLanding() {
-  $("workspace").hidden = true; $("who").hidden = true; $("landing").hidden = false;
+  $("workspace").hidden = true; $("who").hidden = true; $("landing").hidden = false; $("notice").hidden = true;
   const list = $("personas");
   list.textContent = "";
   try {
@@ -99,9 +102,11 @@ async function showLanding() {
     for (const p of personas) {
       const li = document.createElement("li");
       const b = document.createElement("button");
-      b.innerHTML = `<span class="p-name"></span><span class="p-label"></span><span class="p-go">Essayer</span>`;
+      b.innerHTML = `<span class="p-name"></span><span class="p-label"></span><span class="p-go">Essayer</span><span class="p-try"></span>`;
       b.querySelector(".p-name").textContent = p.name;
       b.querySelector(".p-label").textContent = p.label.split(", ").slice(1).join(", ");
+      const first = (SUGGESTIONS[p.id] || [])[0];
+      if (first) b.querySelector(".p-try").textContent = `Par exemple : « ${first} »`;
       b.addEventListener("click", () => signIn(p.id));
       li.append(b); list.append(li);
     }
@@ -109,26 +114,43 @@ async function showLanding() {
     $("health").textContent = h.agent_configured
       ? `Modèle ${h.model}. Budget de la démonstration aujourd'hui : ${h.spent_today_usd.toFixed(2)} $ dépensés sur ${h.daily_budget_usd.toFixed(2)} $.`
       : "La clé de l'API Claude n'est pas configurée : l'agenda fonctionne, mais l'assistant ne répondra pas.";
+    if (h.spent_today_usd >= h.daily_budget_usd) {
+      $("health").textContent = "Le budget quotidien de la démonstration est atteint : l'assistant répondra de nouveau demain. L'agenda reste consultable.";
+    }
   } catch (e) { $("health").textContent = e.message; }
 }
 
 async function signIn(personId) {
-  const data = await api("/api/login", { method: "POST", body: JSON.stringify({ person_id: personId }) });
+  // The previous token lets the server keep this visitor's copy of the school across personas.
+  const previous = state.token || load("visitor") || "";
+  let data;
+  try {
+    data = await api("/api/login", { method: "POST", body: JSON.stringify({ person_id: personId, previous_token: previous }) });
+  } catch (e) { showNotice(e.message); return; }
   state.token = data.token; state.actor = data.actor;
-  store("token", data.token);
+  store("token", data.token); store("visitor", data.token);
   await startWorkspace(true);
 }
 
-function signOut() {
-  state.token = null; state.actor = null; state.session = null;
+function signOut(message) {
+  state.token = null; state.actor = null; state.session = null; state.cost = 0;
   store("token", null); store("session", null);
-  showLanding();
+  if (message) { store("visitor", null); }
+  showLanding().then(() => { if (message) showNotice(message); });
+}
+
+function showNotice(text) {
+  const n = $("notice");
+  n.textContent = text; n.hidden = false;
+  n.scrollIntoView({ block: "center" });
 }
 
 /* ---------------------------------------------------------------- workspace */
 
 async function startWorkspace(fresh) {
-  if (!state.actor) state.actor = (await api("/api/me")).actor;
+  const me = await api("/api/me");
+  state.actor = me.actor;
+  showQuota(me.quota);
   $("landing").hidden = true; $("workspace").hidden = false; $("who").hidden = false;
   $("who-name").textContent = `${state.actor.name}`;
   $("thread").textContent = "";
@@ -236,7 +258,16 @@ function showTurn(turn) {
   for (const a of turn.pending_actions || []) addSlip(a);
   state.cost += turn.usage ? turn.usage.cost_usd : 0;
   $("cost").textContent = `Coût de la conversation : ${(state.cost * 100).toFixed(3)} centime(s) de dollar` +
-    (turn.usage ? ` · dernier échange : ${turn.usage.calls} appel(s) au modèle, ${turn.usage.latency_s.toFixed(1)} s` : "");
+    (turn.usage ? `, dernier échange : ${turn.usage.calls} appel(s) au modèle en ${turn.usage.latency_s.toFixed(1)} s.` : ".");
+  showQuota(turn.quota);
+}
+
+function showQuota(q) {
+  if (!q) { $("quota").hidden = true; return; }
+  $("quota").hidden = false;
+  $("quota").textContent = q.remaining > 0
+    ? `Il te reste ${q.remaining} message${q.remaining > 1 ? "s" : ""} sur ${q.messages_limit} dans cette démonstration.`
+    : `Tu as utilisé les ${q.messages_limit} messages de cette démonstration. Le code complet est sur GitHub.`;
 }
 
 function setBusy(b) {
@@ -409,7 +440,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("input").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("composer").requestSubmit(); }
   });
-  $("switch").addEventListener("click", signOut);
+  $("switch").addEventListener("click", () => signOut());
   $("prev-week").addEventListener("click", () => shiftWeek(-1));
   $("next-week").addEventListener("click", () => shiftWeek(1));
   document.querySelectorAll(".tabs button").forEach((tab) => tab.addEventListener("click", () => {

@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Assistant Ker Avel</title>
-  <meta name="description" content="Démonstration d'un agent IA pour une école d'ingénieurs fictive : agendas, salles, absences, notes et règlement, avec confirmation de chaque action.">
+  <title>Agent de campus — Charbel Dib</title>
+  <meta name="description" content="Agent IA conçu par Charbel Dib : agendas, salles, absences et règlement d'une école d'ingénieurs fictive, avec confirmation de chaque action. Démo et code source.">
+  <meta name="author" content="Charbel Dib">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;700&display=swap">
   <link rel="icon" href="data:,">
@@ -24,11 +25,89 @@
   </header>
 
   <main id="landing" class="landing" hidden>
-    <h1>Qui es-tu&nbsp;?</h1>
-    <p class="lead">Choisis un profil pour essayer l'assistant. L'école est fictive et ses données sont générées&nbsp;:
-      tu peux tout tester. Chaque action (réserver, déplacer, justifier, envoyer) t'est soumise avant d'être exécutée.</p>
-    <ul class="personas" id="personas"></ul>
-    <p class="fine" id="health"></p>
+    <section class="hero">
+      <p class="byline">Un projet de <a href="https://www.linkedin.com/in/charbel-dib7" rel="noopener">Charbel Dib</a>, ingénieur diplômé de l'ENSTA – IP Paris</p>
+      <h1>Un agent IA qui gère l'agenda, les salles et la scolarité d'une école</h1>
+      <p class="lead">Il lit les emplois du temps, trouve des créneaux communs, réserve une salle, déplace un cours
+        et prévient les étudiants, traite les justifications d'absence et répond à partir du règlement en citant
+        ses sources. Il agit avec les droits de la personne connectée, et rien ne change sans sa confirmation.</p>
+      <div class="cta">
+        <a class="button" href="#essayer">Essayer la démo</a>
+        <a class="button secondary" href="https://github.com/charbel-dib/ensta_chatbot" rel="noopener">Voir le code sur GitHub</a>
+      </div>
+      <p class="fine">L'école est fictive et ses données sont générées : tu peux tout tester. Chaque visiteur reçoit sa
+        propre copie de l'école, valable six heures.</p>
+      <p class="notice" id="notice" hidden></p>
+    </section>
+
+    <section id="essayer" class="block">
+      <h2>Essayer en trente secondes</h2>
+      <p>Choisis un profil. L'assistant ne voit et ne fait que ce que ce profil a le droit de voir et de faire.</p>
+      <ul class="personas" id="personas"></ul>
+      <p class="fine" id="health"></p>
+    </section>
+
+    <section class="block">
+      <h2>Ce qu'il y a sous le capot</h2>
+      <dl class="facts">
+        <dt>Claude et 18 outils</dt>
+        <dd>Une boucle d'appel d'outils sur l'API Claude (Haiku 5.5). Les outils sont filtrés par rôle : un étudiant
+          réserve une salle de travail, un enseignant déplace une séance de ses groupes, la scolarité examine
+          les justifications.</dd>
+        <dt>Rien sans confirmation</dt>
+        <dd>Une écriture n'est jamais exécutée sur la seule demande du modèle. Le serveur la met en attente avec un
+          résumé, l'utilisateur la confirme d'un clic, puis toutes les règles sont revérifiées avant d'écrire.</dd>
+        <dt>Les droits côté serveur</dt>
+        <dd>Les permissions viennent du jeton de connexion, jamais de la conversation. L'agenda des autres n'apparaît
+          qu'en disponibilités, comme le veut le RGPD. Les textes écrits par les utilisateurs sont traités comme
+          des données, pas comme des consignes.</dd>
+        <dt>Les mêmes outils en MCP</dt>
+        <dd>Un serveur MCP expose les mêmes outils à Claude Desktop ou à tout client compatible, avec les mêmes règles
+          et le même journal d'audit.</dd>
+        <dt>Pensé pour la production</dt>
+        <dd>Journal de chaque appel d'outil, budgets par conversation et par jour, cache de prompt, coût affiché,
+          tests automatisés, image Docker construite et vérifiée en intégration continue.</dd>
+      </dl>
+    </section>
+
+    <section class="block">
+      <h2>Comment je l'ai évalué</h2>
+      <p>41 scénarios : lecture, règlement avec citation, planification, droits, demandes ambiguës, conflits et
+        injection de consignes. Après chaque exécution, les vérifications portent sur la base de données, les
+        outils appelés et la réponse. Aucun modèle n'en note un autre.</p>
+      <table class="results">
+        <thead><tr><th>Modèle et scénarios</th><th>Réussis</th><th>Coût par scénario</th></tr></thead>
+        <tbody>
+          <tr><td>Haiku 5.5, premier essai</td><td>24 / 29</td><td>0,08 centime</td></tr>
+          <tr><td>Haiku 5.5 après corrections, 3 passes</td><td>87 / 87</td><td>0,06 centime</td></tr>
+          <tr><td>Haiku 5.5, 12 scénarios gardés de côté, 3 passes</td><td>35 / 36</td><td>0,08 centime</td></tr>
+          <tr><td>Sonnet 5.5, les 41 scénarios</td><td>40 / 41</td><td>1,5 centime</td></tr>
+        </tbody>
+      </table>
+      <p>Haiku fait aussi bien que Sonnet pour vingt-quatre fois moins cher : c'est le modèle par défaut.</p>
+      <h3>Ce qui a cassé, et ce que j'en ai fait</h3>
+      <ul class="breaks">
+        <li>Au premier essai, l'agent demandait « lequel ? » au lieu de proposer l'action. La carte de confirmation
+          rend cette question inutile : il propose désormais directement, et ne pose une question que s'il manque
+          une information.</li>
+        <li>Pour trouver la justification la plus ancienne, il prenait parfois le mauvais élément d'une longue liste.
+          La correction est dans l'outil, pas dans le prompt : tri à la demande et dates écrites en toutes lettres.</li>
+        <li>Face à « Annule mon cours » avec trois séances possibles, Sonnet proposait la plus probable au lieu de
+          demander. La carte affichait la séance et les cent étudiants concernés, mais c'est une limite connue.</li>
+      </ul>
+      <p><a href="https://github.com/charbel-dib/ensta_chatbot#evaluation" rel="noopener">Résultats détaillés et
+        transcriptions sur GitHub</a></p>
+    </section>
+
+    <footer class="foot">
+      <p><strong>Charbel Dib</strong>, ingénieur IA, diplômé de l'ENSTA – IP Paris.</p>
+      <p class="links">
+        <a href="https://github.com/charbel-dib/ensta_chatbot" rel="noopener">Code source</a>
+        <a href="https://charbel-dib.vercel.app" rel="noopener">Portfolio</a>
+        <a href="https://www.linkedin.com/in/charbel-dib7" rel="noopener">LinkedIn</a>
+        <a href="https://github.com/charbel-dib" rel="noopener">GitHub</a>
+      </p>
+    </footer>
   </main>
 
   <main id="workspace" class="workspace" hidden>
@@ -40,6 +119,7 @@
         <textarea id="input" rows="2" placeholder="Écris ta demande, par exemple : prends-moi un rendez-vous avec mon enseignant d'apprentissage automatique" required></textarea>
         <button type="submit" id="send">Envoyer</button>
       </form>
+      <p class="fine" id="quota" hidden></p>
       <p class="fine" id="cost"></p>
     </section>
 
