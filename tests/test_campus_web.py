@@ -180,3 +180,104 @@ def test_model_unavailable_gives_503(runtime):
     sid = call(app, "POST", "/api/sessions", token=token)[2]["session_id"]
     status, _, body = call(app, "POST", f"/api/sessions/{sid}/messages", {"text": "Bonjour"}, token)
     assert status == 503 and "indisponible" in body["error"]
+
+
+# ---------------------------------------------------------------- public demo: one school per visitor
+
+@pytest.fixture()
+def demo_runtime(tmp_path, monkeypatch, doc_index):
+    from campus_agent.config import load_settings
+    from campus_agent.runtime import boot
+
+    monkeypatch.setenv("CAMPUS_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.setenv("CAMPUS_NOW", NOW)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("CAMPUS_SECRET_KEY", "test-secret")
+    settings = dataclasses.replace(load_settings(env_file=tmp_path / "none.env"), sandbox=True,
+                                   visitor_message_limit=3, rate_limit_per_minute=100)
+    return boot(settings)
+
+
+def _booking(text_reply="Réservé."):
+    args = {"title": "Révisions", "kind": "reservation", "start": "2026-11-18T14:00", "end": "2026-11-18T16:00",
+            "room_id": "BU-S1"}
+    return [tool_use("create_event", args), text("Confirme la réservation."), text(text_reply)]
+
+
+def test_each_visitor_has_their_own_school(demo_runtime):
+    app, _ = make_app(demo_runtime, _booking())
+    alice, bob = login(app), login(app)
+    sid = call(app, "POST", "/api/sessions", token=alice)[2]["session_id"]
+    turn = call(app, "POST", f"/api/sessions/{sid}/messages", {"text": "Réserve BU-S1 mercredi"}, alice)[2]
+    call(app, "POST", f"/api/sessions/{sid}/actions/{turn['pending_actions'][0]['id']}", {"confirm": True}, alice)
+
+    def wednesday(token):
+        events = call(app, "GET", "/api/calendar?start=2026-11-16", token=token)[2]["events"]
+        return [e["title"] for e in events if e["start"].startswith("2026-11-18")]
+
+    assert "Révisions" in wednesday(alice) and "Révisions" not in wednesday(bob)
+    assert call(app, "GET", f"/api/sessions/{sid}/history", token=bob)[0] == 404   # not in bob's school
+
+
+def test_changing_persona_keeps_the_visitors_school(demo_runtime):
+    app, _ = make_app(demo_runtime, _booking())
+    student = login(app)
+    sid = call(app, "POST", "/api/sessions", token=student)[2]["session_id"]
+    turn = call(app, "POST", f"/api/sessions/{sid}/messages", {"text": "Réserve"}, student)[2]
+    call(app, "POST", f"/api/sessions/{sid}/actions/{turn['pending_actions'][0]['id']}", {"confirm": True}, student)
+    staff = call(app, "POST", "/api/login", {"person_id": "stf-01", "previous_token": student})[2]["token"]
+    entries = call(app, "GET", "/api/audit", token=staff)[2]["entries"]
+    assert any(e["tool"] == "create_event" and e["outcome"] == "executed" for e in entries)
+
+
+def test_visitor_message_quota(demo_runtime):
+    app, _ = make_app(demo_runtime, [text("ok")] * 5)
+    token = login(app)
+    sid = call(app, "POST", "/api/sessions", token=token)[2]["session_id"]
+    remaining = [call(app, "POST", f"/api/sessions/{sid}/messages", {"text": "Bonjour"}, token)[2]["quota"]["remaining"]
+                 for _ in range(3)]
+    assert remaining == [2, 1, 0]
+    status, _, body = call(app, "POST", f"/api/sessions/{sid}/messages", {"text": "Encore"}, token)
+    assert status == 429 and "3 messages" in body["error"]
+    assert call(app, "GET", "/api/me", token=token)[2]["quota"]["remaining"] == 0
+    other = login(app)                                         # a new visitor starts afresh
+    assert call(app, "GET", "/api/me", token=other)[2]["quota"]["remaining"] == 3
+
+
+def test_spend_is_shared_across_visitors(demo_runtime):
+    app, _ = make_app(demo_runtime, [text("ok")] * 4)
+    for _ in range(2):
+        token = login(app)
+        sid = call(app, "POST", "/api/sessions", token=token)[2]["session_id"]
+        call(app, "POST", f"/api/sessions/{sid}/messages", {"text": "Bonjour"}, token)
+    health = call(app, "GET", "/api/health")[2]
+    assert health["demo"] and health["spent_today_usd"] > 0
+    from datetime import date
+    assert demo_runtime.ledger.spent(date(2026, 11, 16)) == pytest.approx(health["spent_today_usd"], abs=1e-4)
+
+
+def test_expired_school_copy_requires_a_new_login(demo_runtime):
+    import shutil
+
+    app, _ = make_app(demo_runtime)
+    token = login(app)
+    for d in demo_runtime.sandboxes.root.iterdir():
+        shutil.rmtree(d)
+    status, _, body = call(app, "GET", "/api/me", token=token)
+    assert status == 401 and "expiré" in body["error"]
+
+
+def test_old_school_copies_are_cleaned_and_capped(demo_runtime):
+    import os
+    import time
+
+    boxes = demo_runtime.sandboxes
+    boxes.max_count = 3
+    ids = [boxes.create() for _ in range(5)]
+    assert len(boxes._dirs()) == 3 and boxes.directory(ids[-1])
+    old = boxes.root / ids[-1] / "campus.db"
+    past = time.time() - boxes.ttl_seconds - 10
+    os.utime(old, (past, past))
+    assert boxes.directory(ids[-1]) is None
+    boxes.cleanup()
+    assert not (boxes.root / ids[-1]).exists()

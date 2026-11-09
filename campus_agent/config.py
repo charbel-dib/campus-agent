@@ -72,6 +72,13 @@ class Settings:
     # Documentation search: "bm25" (no dependency) or "dense" (E5 embeddings, as the ENSTA RAG)
     docs_retriever: str
     emb_model: str
+    # Public demo: one copy of the school per visitor, with a quota per visitor
+    sandbox: bool = False
+    sandbox_ttl_hours: float = 6.0
+    sandbox_max: int = 300
+    visitor_message_limit: int = 30
+    visitor_budget_usd: float = 0.15
+    frame_ancestors: str = "'none'"
     extra: dict = field(default_factory=dict)
 
 
@@ -98,4 +105,10 @@ def load_settings(env_file: Path | None = None) -> Settings:
         pending_action_ttl_minutes=_env_int("CAMPUS_PENDING_TTL_MINUTES", 15),
         docs_retriever=_env("CAMPUS_DOCS_RETRIEVER", "bm25").lower(),
         emb_model=_env("EMB_MODEL", "intfloat/multilingual-e5-base"),
+        sandbox=_env_bool("CAMPUS_SANDBOX", False),
+        sandbox_ttl_hours=_env_float("CAMPUS_SANDBOX_TTL_HOURS", 6.0),
+        sandbox_max=_env_int("CAMPUS_SANDBOX_MAX", 300),
+        visitor_message_limit=_env_int("CAMPUS_VISITOR_MESSAGE_LIMIT", 30),
+        visitor_budget_usd=_env_float("CAMPUS_VISITOR_BUDGET_USD", 0.15),
+        frame_ancestors=_env("CAMPUS_FRAME_ANCESTORS", "'none'"),
     )

@@ -93,7 +93,7 @@ class TurnResult:
 class Agent:
     def __init__(self, conn, clock: Clock, llm: MessagesClient, *, max_steps: int = 10, max_tokens: int = 4096,
                  session_budget_usd: float = 0.25, daily_budget_usd: float = 2.0, channel: str = "agent",
-                 runtime_dir: Path | None = None, pending_ttl_minutes: int = 15):
+                 runtime_dir: Path | None = None, pending_ttl_minutes: int = 15, ledger=None):
         self.conn = conn
         self.clock = clock
         self.llm = llm
@@ -104,6 +104,8 @@ class Agent:
         self.channel = channel
         self.runtime_dir = runtime_dir
         self.pending_ttl_minutes = pending_ttl_minutes
+        # Optional shared spend ledger (public demo: one database per visitor, one budget for all)
+        self.ledger = ledger
 
     # ------------------------------------------------------------------ sessions
 
@@ -146,6 +148,8 @@ class Agent:
         return out
 
     def spent_today(self) -> float:
+        if self.ledger is not None:
+            return self.ledger.spent(self.clock.now().date())
         today = self.clock.now().date().isoformat()
         return self.conn.execute("SELECT COALESCE(SUM(cost_usd), 0) FROM agent_sessions WHERE substr(updated_at,1,10)=?",
                                  (today,)).fetchone()[0]
@@ -256,6 +260,8 @@ class Agent:
         if not turn.reply and turn.pending_actions:
             turn.reply = "Confirme l'action proposée pour que je la réalise."
         self._save(session_id, messages, turn.usage)
+        if self.ledger is not None and turn.usage.cost_usd:
+            self.ledger.record(self.clock.now().date(), turn.usage.cost_usd)
         return turn
 
     @staticmethod
