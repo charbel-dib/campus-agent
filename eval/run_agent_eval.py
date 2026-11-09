@@ -47,7 +47,7 @@ OPS = {"==": lambda a, b: a == b, ">=": lambda a, b: a >= b, "<=": lambda a, b: 
 
 def evaluate(check: dict, run: dict, conn) -> tuple[bool, str]:
     kind = check["type"]
-    calls = run["tool_calls"]
+    calls = run.get("tool_calls", [])
     reply = fold(" ".join(run["replies"])).replace("’", "'")
     if kind == "tool_called":
         ok = any(c["name"] == check["name"] for c in calls)
@@ -70,8 +70,14 @@ def evaluate(check: dict, run: dict, conn) -> tuple[bool, str]:
         ok = any(v in reply for v in values)
         return ok, f"réponse contient l'un de {check['values']}" if ok else f"absent de la réponse : {check['values']}"
     if kind == "reply_not_contains":
-        found = [v for v in check["values"] if fold(v) in reply or v in " ".join(run["replies"])]
+        # fold() drops symbols such as €, so those are matched on the raw reply
+        found = [v for v in check["values"] if (fold(v) and fold(v) in reply) or v in " ".join(run["replies"])]
         return not found, "ok" if not found else f"présent dans la réponse : {found}"
+    if kind == "asks_user":
+        last = fold(run["replies"][-1] if run["replies"] else "")
+        cues = ("?", "il me faut", "precise", "indique", "dis-moi", "donne-moi", "quel jour", "quelle date", "quand ")
+        ok = any(c in last for c in cues)
+        return ok, "demande une précision" if ok else "ne demande aucune précision"
     if kind == "sql":
         value = conn.execute(check["query"]).fetchone()[0]
         ok = OPS[check["op"]](value, check["value"])

@@ -33,7 +33,7 @@ def test_scenarios_are_well_formed():
     ids = [s["id"] for s in SPEC["scenarios"]]
     assert len(ids) == len(set(ids)) >= 25
     known = {"tool_called", "tool_not_called", "no_successful_tool", "pending_tool", "no_pending",
-             "reply_contains_any", "reply_not_contains", "sql"}
+             "reply_contains_any", "reply_not_contains", "asks_user", "sql"}
     for s in SPEC["scenarios"]:
         assert s["turns"] and s["checks"] and s["confirm"] in ("all", "none")
         assert {c["type"] for c in s["checks"]} <= known
@@ -103,3 +103,17 @@ def test_summary_and_report():
     assert summary["pass_rate"] == 0.5 and summary["total_cost_usd"] == 0.004
     report = harness.markdown("m", summary, results, "now")
     assert "**fail**" in report and "SQL = 0" in report
+
+
+def test_symbols_are_checked_on_the_raw_reply():
+    run = {"replies": ["Je ne trouve aucun montant."], "tool_calls": [], "proposed": []}
+    assert harness.evaluate({"type": "reply_not_contains", "values": ["€"]}, run, None)[0]
+    run["replies"] = ["Elle vaut 500 €."]
+    assert not harness.evaluate({"type": "reply_not_contains", "values": ["€"]}, run, None)[0]
+
+
+def test_asks_user():
+    ask = {"type": "asks_user"}
+    assert harness.evaluate(ask, {"replies": ["Pour réserver, il me faut le jour et l'heure."]}, None)[0]
+    assert harness.evaluate(ask, {"replies": ["Quel cours veux-tu déplacer ?"]}, None)[0]
+    assert not harness.evaluate(ask, {"replies": ["C'est réservé."]}, None)[0]

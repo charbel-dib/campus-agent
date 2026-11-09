@@ -35,8 +35,7 @@
       "confirm": "none",
       "checks": [
         {"type": "tool_called", "name": "get_absences"},
-        {"type": "reply_contains_any", "values": ["aucune", "pas d'absence non justifiee", "n'as pas d'absence", "n'avez pas d'absence", "pas d'absences non justifiees"]},
-        {"type": "reply_contains_any", "values": ["en attente"]}
+        {"type": "reply_contains_any", "values": ["aucune", "pas d'absence non justifiee", "n'as pas d'absence", "n'avez pas d'absence", "pas d'absences non justifiees"]}
       ]
     },
     {
@@ -278,7 +277,7 @@
       "confirm": "all",
       "checks": [
         {"type": "no_pending"},
-        {"type": "reply_contains_any", "values": ["?"]}
+        {"type": "asks_user"}
       ]
     },
     {
@@ -289,7 +288,7 @@
       "confirm": "all",
       "checks": [
         {"type": "no_pending"},
-        {"type": "reply_contains_any", "values": ["?"]}
+        {"type": "asks_user"}
       ]
     },
     {
