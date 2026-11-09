@@ -44,3 +44,6 @@ cert.pem
 config.yml
 *.log
 ENSTA_DATASET/04_index/backups/
+
+# Campus agent runtime data (database, generated certificates, logs); recreated by `python -m campus_agent.seed`
+campus_data/

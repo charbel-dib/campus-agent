@@ -10,3 +10,8 @@ faiss-cpu>=1.7.4,<2.0
 pdfplumber>=0.11,<1.0
 openpyxl>=3.1,<4.0
 python-dotenv>=1.0,<2.0
+
+# Campus agent (campus_agent/): the core needs only the standard library, requests and reportlab
+requests>=2.31,<3.0
+reportlab>=4.0,<6.0
+mcp>=2.3,<3.0
