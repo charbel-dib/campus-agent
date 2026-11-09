@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Assistant Ker Avel</title>
+  <meta name="description" content="Démonstration d'un agent IA pour une école d'ingénieurs fictive : agendas, salles, absences, notes et règlement, avec confirmation de chaque action.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;700&display=swap">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <span><strong>Ker Avel</strong> <span class="muted">assistant de l'école</span></span>
+    </div>
+    <div class="who" id="who" hidden>
+      <span id="who-name"></span>
+      <button class="link" id="switch">Changer de profil</button>
+    </div>
+  </header>
+
+  <main id="landing" class="landing" hidden>
+    <h1>Qui es-tu&nbsp;?</h1>
+    <p class="lead">Choisis un profil pour essayer l'assistant. L'école est fictive et ses données sont générées&nbsp;:
+      tu peux tout tester. Chaque action (réserver, déplacer, justifier, envoyer) t'est soumise avant d'être exécutée.</p>
+    <ul class="personas" id="personas"></ul>
+    <p class="fine" id="health"></p>
+  </main>
+
+  <main id="workspace" class="workspace" hidden>
+    <section class="chat" aria-label="Conversation">
+      <div class="thread" id="thread" aria-live="polite"></div>
+      <div class="suggestions" id="suggestions"></div>
+      <form class="composer" id="composer">
+        <label class="sr" for="input">Ta demande</label>
+        <textarea id="input" rows="2" placeholder="Écris ta demande, par exemple : prends-moi un rendez-vous avec mon enseignant d'apprentissage automatique" required></textarea>
+        <button type="submit" id="send">Envoyer</button>
+      </form>
+      <p class="fine" id="cost"></p>
+    </section>
+
+    <aside class="side" aria-label="Ton agenda et tes messages">
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="week">Ma semaine</button>
+        <button role="tab" aria-selected="false" data-tab="inbox">Messages <span id="inbox-count"></span></button>
+        <button role="tab" aria-selected="false" data-tab="audit">Journal</button>
+      </div>
+      <div class="panel" id="panel-week">
+        <div class="week-nav">
+          <button class="icon" id="prev-week" aria-label="Semaine précédente">‹</button>
+          <span id="week-label"></span>
+          <button class="icon" id="next-week" aria-label="Semaine suivante">›</button>
+        </div>
+        <div class="week" id="week"></div>
+      </div>
+      <div class="panel" id="panel-inbox" hidden><ul class="inbox" id="inbox"></ul></div>
+      <div class="panel" id="panel-audit" hidden>
+        <p class="fine">Chaque appel d'outil est journalisé : qui, quoi, quand, avec quel résultat.</p>
+        <ul class="audit" id="audit"></ul>
+      </div>
+    </aside>
+  </main>
+
+  <template id="tpl-action">
+    <div class="slip" role="group">
+      <p class="slip-title">À confirmer</p>
+      <p class="slip-summary"></p>
+      <div class="slip-buttons">
+        <button class="confirm">Confirmer</button>
+        <button class="cancel secondary">Annuler</button>
+      </div>
+    </div>
+  </template>
+</body>
+</html>

@@ -1,0 +1,154 @@
+/* Ker Avel: a Breton engineering school by the sea. Navy ink, sea blue, fog greys, and one
+   signal colour (the yellow of a channel buoy) reserved for what waits on the user: actions to confirm. */
+:root {
+  --ink: #14213d;
+  --ink-2: #44506a;
+  --sea: #1f6f8b;
+  --fog: #edf1f3;
+  --line: #d3dbe0;
+  --paper: #ffffff;
+  --signal: #f2b705;
+  --signal-wash: #fff6d6;
+  --ok: #2e7d4f;
+  --bad: #b42318;
+  --k-cours: #1f6f8b; --k-td: #3c8d8c; --k-tp: #2d6a9f; --k-examen: #b42318;
+  --k-permanence: #6b5ea8; --k-rendez_vous: #c48a00; --k-reservation: #2e7d4f; --k-reunion: #5f6b7a; --k-autre: #8a94a3;
+  --radius: 10px;
+  font-family: "Public Sans", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--fog);
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; }
+button { font: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--sea); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.muted { color: var(--ink-2); }
+.fine { font-size: 0.8125rem; color: var(--ink-2); margin: 0.5rem 0 0; }
+[hidden] { display: none !important; }
+
+/* ---------------------------------------------------------------- bar */
+.bar { display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+       padding: 0.75rem 1.25rem; background: var(--ink); color: #fff; }
+.brand { display: flex; align-items: center; gap: 0.6rem; font-size: 1.05rem; }
+.brand .muted { color: #b9c3d3; font-weight: 400; }
+.mark { width: 22px; height: 22px; border-radius: 50%; background:
+        radial-gradient(circle at 50% 50%, var(--fog) 0 28%, transparent 30%), var(--sea);
+        box-shadow: inset 0 -7px 0 var(--signal); }
+.who { display: flex; align-items: center; gap: 0.75rem; font-size: 0.95rem; }
+.link { background: none; border: 0; color: #cfe3ec; text-decoration: underline; padding: 0; }
+
+/* ---------------------------------------------------------------- landing */
+.landing { width: min(760px, 100% - 32px); margin: 3rem auto; }
+.landing h1 { font-size: 2.6rem; line-height: 1.1; margin: 0 0 0.75rem; letter-spacing: -0.01em; }
+.lead { font-size: 1.1rem; max-width: 62ch; color: var(--ink-2); margin: 0 0 2rem; }
+.personas { list-style: none; padding: 0; margin: 0; border-top: 2px solid var(--ink); }
+.personas li { border-bottom: 1px solid var(--line); }
+.personas button { width: 100%; text-align: left; background: none; border: 0; padding: 1rem 0.25rem;
+                   display: grid; grid-template-columns: 11rem 1fr auto; gap: 1rem; align-items: baseline; color: inherit; }
+.personas button:hover { background: var(--paper); }
+.personas .p-name { font-weight: 700; font-size: 1.1rem; }
+.personas .p-label { color: var(--ink-2); }
+.personas .p-go { color: var(--sea); font-weight: 700; }
+
+/* ---------------------------------------------------------------- workspace */
+.workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+             gap: 1rem; padding: 1rem; width: min(1360px, 100%); margin: 0 auto; }
+.chat { display: flex; flex-direction: column; min-height: 0; background: var(--paper);
+        border-radius: var(--radius); border: 1px solid var(--line); padding: 1rem; height: calc(100vh - 88px); }
+.thread { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; padding: 0.25rem 0.25rem 1rem; }
+.msg { max-width: 72ch; }
+.msg.user { align-self: flex-end; background: var(--ink); color: #fff; padding: 0.6rem 0.9rem;
+            border-radius: 14px 14px 4px 14px; }
+.msg.assistant { align-self: flex-start; }
+.msg.assistant p { margin: 0 0 0.6rem; }
+.msg.assistant p:last-child { margin-bottom: 0; }
+.msg.assistant ul { margin: 0.25rem 0 0.6rem; padding-left: 1.2rem; }
+.msg.note { align-self: center; font-size: 0.85rem; color: var(--ink-2); }
+.ref { font-size: 0.8em; background: var(--fog); border-radius: 4px; padding: 0 0.3em; color: var(--sea); white-space: nowrap; }
+.thinking { color: var(--ink-2); font-style: italic; }
+
+details.trace { font-size: 0.85rem; color: var(--ink-2); margin-top: 0.4rem; }
+details.trace summary { cursor: pointer; }
+details.trace ol { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+details.trace li { margin-bottom: 0.2rem; }
+details.trace code { font-size: 0.95em; color: var(--ink); }
+details.trace .err { color: var(--bad); }
+.download { display: inline-block; margin-top: 0.5rem; background: var(--paper); border: 1px solid var(--sea);
+            color: var(--sea); border-radius: 6px; padding: 0.35rem 0.8rem; font-weight: 700; }
+
+/* The one bold element: the slip the user signs before anything changes. */
+.slip { position: relative; align-self: flex-start; max-width: 64ch; background: var(--signal-wash);
+        border: 2px solid var(--signal); border-radius: var(--radius); padding: 0.85rem 1rem 0.9rem 1.25rem; }
+.slip::before { content: ""; position: absolute; left: 6px; top: 10px; bottom: 10px;
+                border-left: 2px dashed var(--signal); }
+.slip-title { margin: 0; font-weight: 700; font-size: 0.85rem; color: #7a5a00; }
+.slip-summary { margin: 0.25rem 0 0.75rem; }
+.slip-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.slip.done { border-color: var(--line); background: var(--fog); }
+.slip.done::before { border-color: var(--line); }
+.slip .outcome { margin: 0; font-weight: 700; }
+.slip .outcome.ok { color: var(--ok); }
+.slip .outcome.ko { color: var(--bad); }
+button.confirm, .composer button { background: var(--ink); color: #fff; border: 0; border-radius: 8px; padding: 0.5rem 1rem; font-weight: 700; }
+button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--ink-2); border-radius: 8px; padding: 0.5rem 1rem; }
+button:disabled { opacity: 0.5; cursor: progress; }
+
+.suggestions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
+.suggestions button { background: var(--fog); border: 1px solid var(--line); color: var(--ink); border-radius: 999px;
+                      padding: 0.3rem 0.75rem; font-size: 0.875rem; text-align: left; }
+.suggestions button:hover { border-color: var(--sea); }
+.composer { display: flex; gap: 0.5rem; align-items: stretch; }
+.composer textarea { flex: 1; resize: vertical; min-height: 3rem; font: inherit; padding: 0.6rem 0.75rem;
+                     border: 1px solid var(--ink-2); border-radius: 8px; }
+
+/* ---------------------------------------------------------------- side panel */
+.side { background: var(--paper); border-radius: var(--radius); border: 1px solid var(--line); padding: 0.75rem;
+        display: flex; flex-direction: column; min-height: 0; height: calc(100vh - 88px); }
+.tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--line); margin-bottom: 0.75rem; }
+.tabs button { background: none; border: 0; padding: 0.4rem 0.6rem; color: var(--ink-2); border-bottom: 3px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--ink); font-weight: 700; border-bottom-color: var(--sea); }
+.panel { overflow-y: auto; flex: 1; min-height: 0; }
+.week-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; font-weight: 700; }
+.icon { background: var(--fog); border: 1px solid var(--line); border-radius: 6px; width: 2rem; height: 2rem; }
+
+/* The week reads like a tide table: one column per day, hours down the left, a line for now. */
+.week { display: grid; grid-template-columns: 2.4rem repeat(5, minmax(0, 1fr)); gap: 0 3px; font-size: 0.72rem; }
+.week .dayhead { text-align: center; font-weight: 700; padding-bottom: 0.25rem; font-size: 0.8rem; }
+.week .dayhead.today { color: var(--sea); }
+.week .hours, .week .col { position: relative; height: 660px; }
+.week .hours span { position: absolute; right: 4px; transform: translateY(-50%); color: var(--ink-2);
+                    font-variant-numeric: tabular-nums; }
+.week .col { background: repeating-linear-gradient(to bottom, var(--fog) 0 1px, transparent 1px 60px); border-radius: 4px; }
+.week .ev { position: absolute; left: 1px; right: 1px; border-radius: 4px; padding: 2px 4px; overflow: hidden;
+            color: #fff; line-height: 1.2; border-left: 3px solid rgba(0, 0, 0, 0.25); }
+.week .ev b, .week .ev small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.week .ev small { opacity: 0.9; }
+.week .busy { background: repeating-linear-gradient(135deg, #c9d2d9 0 4px, #dfe5e9 4px 8px); color: var(--ink); }
+.week .now { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--signal); z-index: 2; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; font-size: 0.75rem; color: var(--ink-2); margin-top: 0.6rem; }
+.legend i { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.25rem; vertical-align: -1px; }
+
+.inbox, .audit { list-style: none; padding: 0; margin: 0; }
+.inbox li { border-bottom: 1px solid var(--line); padding: 0.6rem 0; }
+.inbox .subj { font-weight: 700; }
+.inbox .meta, .audit .meta { font-size: 0.8rem; color: var(--ink-2); }
+.audit li { font-size: 0.8rem; border-bottom: 1px solid var(--line); padding: 0.4rem 0; }
+.audit .outcome { font-weight: 700; }
+.audit .o-denied, .audit .o-error, .audit .o-conflict, .audit .o-invalid { color: var(--bad); }
+.audit .o-pending { color: #7a5a00; }
+.audit .o-executed { color: var(--ok); }
+
+@media (max-width: 900px) {
+  .workspace { grid-template-columns: 1fr; padding: 0.5rem 16px; }
+  .chat { height: 72vh; }
+  .side { height: auto; }
+  .personas button { grid-template-columns: 1fr; gap: 0.1rem; }
+  .landing h1 { font-size: 2rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .slip:not(.done) { animation: arrive 260ms ease-out; }
+  @keyframes arrive { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+}

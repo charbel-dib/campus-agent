@@ -234,8 +234,11 @@ class Agent:
             results = []
             for call in calls:
                 res = tools.execute(ctx, call["name"], call.get("input", {}), confirm_writes=True)
-                turn.trace.append({"type": "tool", "name": call["name"], "input": call.get("input", {}),
-                                   "ok": not res.is_error, "preview": _preview(res)})
+                step = {"type": "tool", "name": call["name"], "input": call.get("input", {}),
+                        "ok": not res.is_error, "preview": _preview(res)}
+                if not res.is_error and "download_url" in res.content:
+                    step["download_url"] = res.content["download_url"]
+                turn.trace.append(step)
                 if res.pending_action:
                     turn.pending_actions.append(res.pending_action)
                 results.append({"type": "tool_result", "tool_use_id": call["id"],
