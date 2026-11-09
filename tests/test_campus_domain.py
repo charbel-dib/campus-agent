@@ -311,3 +311,15 @@ def test_absences_can_be_listed_oldest_first(ctx_for):
     assert oldest[0]["date"] == min(a["date"] for a in recent) and oldest[0]["id"] == recent[-1]["id"]
     assert oldest[0]["when"].split()[0] in ("lundi", "mardi", "mercredi", "jeudi", "vendredi")
     assert "submitted_at" in oldest[0]
+
+
+def test_school_clock_follows_paris_time_whatever_the_server():
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+
+    from campus_agent.clock import Clock
+
+    now = Clock().now()
+    paris = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Paris")).replace(tzinfo=None)
+    assert now.tzinfo is None and abs((paris - now).total_seconds()) < 120
+    assert Clock("2026-11-16T09:00").now() == datetime(2026, 11, 16, 9, 0)

@@ -22,14 +22,30 @@ MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "
              "septembre", "octobre", "novembre", "décembre"]
 
 
+SCHOOL_TZ = "Europe/Paris"
+
+
+def _school_zone():
+    """The school's time zone, whatever the server's (hosts often run in UTC)."""
+    try:
+        from zoneinfo import ZoneInfo
+
+        return ZoneInfo(SCHOOL_TZ)
+    except Exception:  # noqa: BLE001 - no time zone database: fall back to the server's local time
+        return None
+
+
 class Clock:
     def __init__(self, pinned: str = ""):
         self._pinned = parse_dt(pinned) if pinned else None
+        self._zone = _school_zone()
 
     def now(self) -> datetime:
+        """Naive school time (Europe/Paris), like every time stored in the database."""
         if self._pinned is not None:
             return self._pinned
-        return datetime.now().replace(second=0, microsecond=0)
+        current = datetime.now(self._zone) if self._zone else datetime.now()
+        return current.replace(tzinfo=None, second=0, microsecond=0)
 
     def today(self) -> date:
         return self.now().date()
