@@ -75,7 +75,8 @@ def evaluate(check: dict, run: dict, conn) -> tuple[bool, str]:
         return not found, "ok" if not found else f"présent dans la réponse : {found}"
     if kind == "asks_user":
         last = fold(run["replies"][-1] if run["replies"] else "")
-        cues = ("?", "il me faut", "precise", "indique", "dis-moi", "donne-moi", "quel jour", "quelle date", "quand ")
+        cues = ("?", "il me faut", "besoin de", "precise", "indique", "dis-moi", "donne-moi", "quel jour",
+                "quelle date", "quand ")
         ok = any(c in last for c in cues)
         return ok, "demande une précision" if ok else "ne demande aucune précision"
     if kind == "sql":
