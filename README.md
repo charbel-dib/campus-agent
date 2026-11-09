@@ -12,7 +12,9 @@ It runs on a fictional school, *École d'ingénieurs Ker Avel*: 290 students, 30
 the Claude API, and to any MCP client such as Claude Desktop.
 
 This repository started as a RAG chatbot over the ENSTA website ([version 0](docs/ensta-rag.md),
-still in `app.py`). The agent is the next step: from answering questions to doing the work.
+still in `app.py`). The agent is the next step: from answering questions to doing the work. Its
+document search uses BM25 by default, with the E5 embeddings of version 0 as an option
+(`CAMPUS_DOCS_RETRIEVER=dense`).
 
 <!-- DEMO -->
 
@@ -26,8 +28,8 @@ still in `app.py`). The agent is the next step: from answering questions to doin
   action and confirms; the server then checks every rule again before writing.
 - **Permissions live on the server**, not in the prompt: a student who talks the model into
   asking for someone else's grades still gets a refusal from the tool.
-- **Measured**: 29 scenarios checked on the database after each run, plus 87 tests without any
-  model call.
+- **Measured**: 29 scenarios checked on the database after each run, plus 77 tests of the agent
+  that need no model call.
 
 ## Try it
 
@@ -93,7 +95,7 @@ flowchart LR
     MCP --> TR
     TR --> DOM[Business rules and permissions<br/>campus_agent.domain]
     DOM --> DB[(SQLite: school, pending actions, audit log)]
-    DOM --> DOCS[School rules, BM25 / E5 search]
+    DOM --> DOCS[School rules, BM25 search]
 ```
 
 One registry describes each tool once (schema, roles, read or write). The agent, the MCP server
@@ -137,7 +139,7 @@ every write tool carries `destructiveHint` so the client asks the user first.
 - **Prompt injection.** Text written by users (event notes, messages) comes back to the model
   labelled as user data, and the instructions say it is never an order. Even when the model is
   fooled, the attacker's text cannot widen the user's rights, and every write still needs the
-  user's click. Three evaluation scenarios plant such text.
+  user's click. Two evaluation scenarios plant such text, a third has the user claim another role.
 - **Audit trail.** Every tool call is logged with who, what, through which channel and with which
   outcome (`ok`, `pending`, `executed`, `denied`, `conflict`…); the office sees it in the interface.
 - **Cost control.** Prompt caching of the tools, instructions and conversation; a step cap per
@@ -146,7 +148,7 @@ every write tool carries `destructiveHint` so the client asks the user first.
 - **Robustness.** Retries with back-off on rate limits and overloads, timeouts, tool errors
   returned to the model so it can recover, history trimmed only on turn boundaries.
 - **Engineering.** Typed settings from the environment, a dependency-light core (standard library,
-  `requests`, `reportlab`), 87 tests, CI that also builds the Docker image and probes it,
+  `requests`, `reportlab`), 77 tests for the agent, CI that also builds the Docker image and probes it,
   non-root container with a health check.
 
 ## Evaluation
