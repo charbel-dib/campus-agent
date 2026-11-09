@@ -16,11 +16,15 @@ still in `app.py`). The agent is the next step: from answering questions to doin
 document search uses BM25 by default, with the E5 embeddings of version 0 as an option
 (`CAMPUS_DOCS_RETRIEVER=dense`).
 
-<!-- DEMO -->
-
 ## In one minute
 
-<!-- RESULTS -->
+| Claude Haiku 5.5 (default) | Pass rate | Cost per scenario | Time per scenario |
+|---|---:|---:|---:|
+| 29 tuning scenarios, 3 runs each | **87/87** | 0.06 cent | 4.6 s |
+| 12 held-out scenarios, 3 runs each | **35/36** | 0.08 cent | 5.0 s |
+
+Sonnet 5.5 passes the same scenarios at about **24 times the cost**, so Haiku is the default
+([details](#evaluation)).
 
 - **18 tools, filtered by role.** A student books a study room or an appointment, a teacher
   moves a class for their groups, the school office reviews justifications.
@@ -28,8 +32,8 @@ document search uses BM25 by default, with the E5 embeddings of version 0 as an 
   action and confirms; the server then checks every rule again before writing.
 - **Permissions live on the server**, not in the prompt: a student who talks the model into
   asking for someone else's grades still gets a refusal from the tool.
-- **Measured**: 29 scenarios checked on the database after each run, plus 77 tests of the agent
-  that need no model call.
+- **Measured**: 41 scenarios checked on the database after each run (12 of them held out), plus
+  81 tests that need no model call.
 
 ## Try it
 
@@ -148,22 +152,70 @@ every write tool carries `destructiveHint` so the client asks the user first.
 - **Robustness.** Retries with back-off on rate limits and overloads, timeouts, tool errors
   returned to the model so it can recover, history trimmed only on turn boundaries.
 - **Engineering.** Typed settings from the environment, a dependency-light core (standard library,
-  `requests`, `reportlab`), 77 tests for the agent, CI that also builds the Docker image and probes it,
+  `requests`, `reportlab`), 81 tests for the agent, CI that also builds the Docker image and probes it,
   non-root container with a health check.
 
 ## Evaluation
 
 `eval/agent_scenarios.json` holds 29 scenarios in seven categories: reading, rules (with the
 expected citation), planning (actions confirmed by the harness), permissions, ambiguous requests,
-conflicts and injection. Each runs on a fresh copy of the school; the checks look at the tools
+conflicts and injection; `eval/agent_heldout.json` holds 12 more, kept aside. Each runs on a fresh copy of the school; the checks look at the tools
 called, the actions proposed, **the database afterwards** and the reply. No model grades another.
 
 ```bash
 python eval/run_agent_eval.py --model claude-haiku-5-5
 python eval/run_agent_eval.py --model claude-sonnet-5-5
+python eval/run_agent_eval.py --set heldout --repeat 3
 ```
 
-<!-- EVAL -->
+### Results (November 2026)
+
+All runs on the same code; reports and full transcripts in [`eval/results/`](eval/results).
+
+| Model | Scenarios | Runs | Passed | Total cost | Per scenario | Time | Model calls |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Haiku 5.5, first run | tuning set | 29 | 24 | $0.024 | 0.08 ¢ | 4.6 s | 2.7 |
+| **Haiku 5.5** | tuning set | 87 | **87** | $0.055 | 0.06 ¢ | 4.6 s | 2.9 |
+| **Haiku 5.5** | held-out set | 36 | **35** | $0.030 | 0.08 ¢ | 5.0 s | 3.1 |
+| Sonnet 5.5 | tuning set | 29 | 29 | $0.434 | 1.50 ¢ | 5.6 s | 2.8 |
+| Sonnet 5.5 | held-out set | 12 | 11 | $0.181 | 1.51 ¢ | 6.7 s | 3.2 |
+
+**Which model.** On these tasks Haiku 5.5 does as well as Sonnet 5.5 for a twenty-fourth of the price
+and is a little faster, so it is the default (`CAMPUS_MODEL`). The tools carry most of the
+difficulty (permissions, conflicts, free slots), which suits a small model. Sonnet would be worth
+its price for longer, open-ended planning.
+
+**The held-out set.** Tuning on the same scenarios one measures inflates the score, so after the
+fixes I wrote 12 new scenarios (other people, wordings and traps) and ran them once, as they are,
+without changing the agent afterwards.
+
+### Where it breaks
+
+What the runs showed, and what was done about it:
+
+- **Asking instead of acting (first run).** Asked to move a class or to justify an absence, the
+  agent listed the options and asked « which one? » or « shall I? ». With a confirmation slip, that
+  question is redundant: the instructions now tell it to propose the action directly and let the
+  slip carry the consent, and to ask only when information is missing.
+- **Picking from a long list (1 run in 87, before the fix).** Asked for the oldest pending justification, Haiku
+  took the second-to-last item of a list sorted newest first, and named the wrong weekday from a
+  bare ISO date. Fixed in the tool, not the prompt: `get_absences` now sorts oldest first on
+  request and gives every date in words.
+- **The test, not the agent (held-out, Haiku, 1 run in 3).** « Cancel my lab next Wednesday »,
+  said on a Monday, can mean the day after tomorrow or the week after. In one run Haiku asked which
+  one, while the scenario expected the later date: the question was a right answer, and the miss
+  is counted as it was pre-registered. Sonnet picked the later date, said so, and offered to switch.
+- **Acting on a vague request (held-out, Sonnet).** « Annule mon cours » with three classes that
+  week: Haiku asked which; Sonnet proposed cancelling the lecture for 100 students and named the
+  alternatives. The slip showed exactly that, so a real user would refuse it, but this is the
+  cost of the « propose directly » rule with a more decisive model. Next step: ask when several
+  events match a destructive request (not yet measured, so not claimed).
+- **Harness defects (first run).** A check for « € » always failed, because the accent folding
+  erased the symbol; a request for missing information was only recognised by its question
+  mark. Both fixed and covered by tests; the first-run report is kept as it was.
+
+Not covered by the evaluation: long conversations (beyond a few turns), simultaneous users, and
+other languages than French.
 
 ## Use it from Claude Desktop
 
