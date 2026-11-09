@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml/badge.svg)](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml)
 
-**Live demo: [charbeld77-agent-campus.hf.space](https://charbeld77-agent-campus.hf.space)**, no sign-up; each
+**Live demo: [agent-campus.onrender.com](https://agent-campus.onrender.com)**, no sign-up; each
 visitor gets a private copy of the school. Built by [Charbel Dib](https://www.linkedin.com/in/charbel-dib7)
 ([portfolio](https://charbel-dib.vercel.app)).
 
@@ -223,12 +223,13 @@ other languages than French.
 
 ## Public demo
 
-The demo runs on a Hugging Face Space ([`deploy/huggingface`](deploy/huggingface)) that builds `main` from
-this repository. It runs with `CAMPUS_SANDBOX=1`: each visitor receives a private copy of the school when
-choosing a persona, kept across persona changes and dropped after six hours without activity, so visitors
-never see each other's bookings and the demo never wears out. Each visitor has 30 messages and at most
-$0.15; a ledger shared by all copies caps the whole demo at $2 a day. A scheduled workflow
-([`keep-alive.yml`](.github/workflows/keep-alive.yml)) calls it daily so it does not fall asleep.
+The demo is a free Render web service described by [`render.yaml`](render.yaml), built from the
+Dockerfile and redeployed on every push to `main`. It runs with `CAMPUS_SANDBOX=1`: each visitor receives a
+private copy of the school when choosing a persona, kept across persona changes and dropped after six
+hours without activity, so visitors never see each other's bookings and the demo never wears out. Each
+visitor has 30 messages and at most $0.15; a ledger shared by all copies caps the whole demo at $2 a day.
+A scheduled workflow ([`keep-alive.yml`](.github/workflows/keep-alive.yml)) calls it every ten minutes so
+that it does not spin down.
 
 ## Use it from Claude Desktop
 

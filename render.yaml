@@ -1,0 +1,30 @@
+# Render Blueprint for the public demo: New → Blueprint → this repository.
+# Free web service built from the Dockerfile; redeployed on every push to main.
+services:
+  - type: web
+    name: agent-campus
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false            # asked once in the dashboard, never stored in the repository
+      - key: CAMPUS_SECRET_KEY
+        generateValue: true    # random signing key for the visitors' sessions
+      - key: CAMPUS_SANDBOX
+        value: "1"             # a private copy of the school per visitor
+      - key: CAMPUS_SANDBOX_TTL_HOURS
+        value: "6"
+      - key: CAMPUS_VISITOR_MESSAGE_LIMIT
+        value: "30"
+      - key: CAMPUS_VISITOR_BUDGET_USD
+        value: "0.15"
+      - key: CAMPUS_SESSION_BUDGET_USD
+        value: "0.15"
+      - key: CAMPUS_DAILY_BUDGET_USD
+        value: "2"
+      - key: CAMPUS_MODEL
+        value: claude-haiku-5-5
