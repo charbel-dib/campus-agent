@@ -117,9 +117,12 @@ def _deadline(row) -> str:
 
 def _absence_view(row) -> dict:
     out = {"id": row["id"], "student": f"{row['first_name']} {row['last_name']}", "student_id": row["student_id"],
-           "session": row["title"], "date": row["start"], "course_id": row["course_id"], "status": row["status"]}
+           "session": row["title"], "date": row["start"], "when": human_dt(parse_dt(row["start"])),
+           "course_id": row["course_id"], "status": row["status"]}
     if row["reason"]:
         out["reason"] = row["reason"]
+    if row["submitted_at"]:
+        out["submitted_at"] = row["submitted_at"]
     if row["review_comment"]:
         out["review_comment"] = row["review_comment"]
     if row["status"] == "non_justifiee":
@@ -128,7 +131,7 @@ def _absence_view(row) -> dict:
 
 
 def get_absences(ctx: Context, student_id: str | None = None, status: str | None = None,
-                 course_id: str | None = None, limit: int = 30) -> dict:
+                 course_id: str | None = None, order: str = "recent", limit: int = 30) -> dict:
     sid = _scope_student(ctx, student_id)
     sql = """SELECT a.*, e.title, e.start, e.end, e.course_id, p.group_id, p.first_name, p.last_name
              FROM absences a JOIN events e ON e.id = a.event_id JOIN people p ON p.id = a.student_id WHERE 1=1"""
@@ -144,7 +147,10 @@ def get_absences(ctx: Context, student_id: str | None = None, status: str | None
     if course_id:
         sql += " AND e.course_id = ?"
         params.append(course_id)
-    rows = ctx.conn.execute(sql + " ORDER BY e.start DESC", params).fetchall()
+    if order not in ("recent", "oldest"):
+        raise InvalidRequest("ordre : recent ou oldest")
+    rows = ctx.conn.execute(sql + (" ORDER BY e.start DESC" if order == "recent" else " ORDER BY e.start ASC"),
+                            params).fetchall()
     if ctx.actor.is_teacher:
         pairs = teacher_course_groups(ctx.conn, ctx.actor.id)
         rows = [r for r in rows if (r["course_id"], r["group_id"]) in pairs]
@@ -152,7 +158,8 @@ def get_absences(ctx: Context, student_id: str | None = None, status: str | None
     for r in rows:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
     limit = max(1, min(int(limit), 50))
-    return {"total": len(rows), "by_status": counts, "absences": [_absence_view(r) for r in rows[:limit]],
+    return {"total": len(rows), "by_status": counts, "order": "plus récentes d'abord" if order == "recent"
+            else "plus anciennes d'abord", "absences": [_absence_view(r) for r in rows[:limit]],
             **({"truncated": True} if len(rows) > limit else {})}
 
 

@@ -130,7 +130,10 @@ TOOLS: list[Tool] = [
          "Scolarité : toutes, par exemple les demandes en_attente à examiner.",
          {"student_id": {"type": "string"},
           "status": {"type": "string", "enum": ["non_justifiee", "en_attente", "justifiee", "refusee"]},
-          "course_id": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+          "course_id": {"type": "string"},
+          "order": {"type": "string", "enum": ["recent", "oldest"],
+                    "description": "recent (défaut) : plus récentes d'abord ; oldest : plus anciennes d'abord"},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
          (), academics.get_absences),
     Tool("search_documents",
          "Recherche dans le règlement et les procédures officielles de l'école (absences, examens, rattrapages, "

@@ -303,3 +303,11 @@ def test_document_search(doc_index):
 def test_unknown_ids_are_reported(ctx_for):
     with pytest.raises(NotFound):
         calendar.get_schedule(ctx_for(STAFF), "2026-11-16", person_id="tch-999")
+
+
+def test_absences_can_be_listed_oldest_first(ctx_for):
+    recent = academics.get_absences(ctx_for(STAFF), status="en_attente")["absences"]
+    oldest = academics.get_absences(ctx_for(STAFF), status="en_attente", order="oldest")["absences"]
+    assert oldest[0]["date"] == min(a["date"] for a in recent) and oldest[0]["id"] == recent[-1]["id"]
+    assert oldest[0]["when"].split()[0] in ("lundi", "mardi", "mercredi", "jeudi", "vendredi")
+    assert "submitted_at" in oldest[0]
