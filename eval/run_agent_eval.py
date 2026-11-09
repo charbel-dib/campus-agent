@@ -210,15 +210,33 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--effort", default=None, help="low, medium or high (default: the model's)")
+    parser.add_argument("--batch", help="run part N of K, e.g. 1/3 (long runs split across calls)")
+    parser.add_argument("--merge", action="store_true", help="combine the saved batches into one report")
     args = parser.parse_args(argv)
 
     settings = load_settings()
     model = args.model or settings.model
     spec = json.loads(SCENARIOS.read_text(encoding="utf-8"))
     scenarios = spec["scenarios"]
+    stem = f"agent-{model}" + (f"-{args.effort}" if args.effort else "")
+    if args.merge:
+        parts = sorted(RESULTS.glob(f"{stem}-batch*.json"))
+        results = [r for p in parts for r in json.loads(p.read_text(encoding="utf-8"))["results"]]
+        order = {s["id"]: i for i, s in enumerate(scenarios)}
+        results.sort(key=lambda r: order.get(r["id"], 999))
+        _write(stem, model, args.effort, results, spec["now"])
+        for p in parts:
+            p.unlink()
+            p.with_suffix(".md").unlink(missing_ok=True)
+        return
     if args.only:
         wanted = set(args.only.split(","))
         scenarios = [s for s in scenarios if s["id"] in wanted]
+        stem += "-partial"
+    if args.batch:
+        n, k = (int(x) for x in args.batch.split("/"))
+        scenarios = scenarios[n - 1::k]
+        stem += f"-batch{n}of{k}"
     tools.set_document_index(DocumentIndex(settings.docs_dir, settings.docs_retriever, settings.emb_model))
 
     def factory():
@@ -229,13 +247,16 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit("ANTHROPIC_API_KEY is missing: add it to .env")
     print(f"{len(scenarios)} scenario(s) × {args.repeat} with {model}…", flush=True)
     results = run_all(scenarios, spec["now"], spec["seed"], factory, args.repeat, args.workers)
+    _write(stem, model, args.effort, results, spec["now"])
+
+
+def _write(stem: str, model: str, effort: str | None, results: list[dict], now: str) -> None:
     summary = summarise(results)
     RESULTS.mkdir(parents=True, exist_ok=True)
-    stem = f"agent-{model}" + (f"-{args.effort}" if args.effort else "") + ("-partial" if args.only else "")
-    (RESULTS / f"{stem}.json").write_text(json.dumps({"model": model, "effort": args.effort, "summary": summary,
+    (RESULTS / f"{stem}.json").write_text(json.dumps({"model": model, "effort": effort, "summary": summary,
                                                        "results": results}, ensure_ascii=False, indent=1),
                                           encoding="utf-8")
-    report = markdown(model + (f" (effort {args.effort})" if args.effort else ""), summary, results, spec["now"])
+    report = markdown(model + (f" (effort {effort})" if effort else ""), summary, results, now)
     (RESULTS / f"{stem}.md").write_text(report, encoding="utf-8")
     print(report)
 
