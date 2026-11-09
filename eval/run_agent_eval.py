@@ -195,6 +195,8 @@ def markdown(model: str, summary: dict, results: list[dict], now: str) -> str:
             if r.get("error"):
                 lines.append(f"- **{r['id']}**: {r['error']}")
                 continue
+            if "error" in r.get("stopped", []):
+                lines.append(f"- **{r['id']}**: the model API returned an error (see the JSON transcript)")
             for c in r["checks"]:
                 if not c["ok"]:
                     lines.append(f"- **{r['id']}** ({c['check']}): {c['detail']}")
@@ -223,6 +225,8 @@ def main(argv: list[str] | None = None) -> None:
         return ClaudeClient(api_key=settings.anthropic_api_key, model=model, timeout=settings.api_timeout_seconds,
                             effort=args.effort or settings.effort or None)
 
+    if not settings.anthropic_api_key:
+        sys.exit("ANTHROPIC_API_KEY is missing: add it to .env")
     print(f"{len(scenarios)} scenario(s) × {args.repeat} with {model}…", flush=True)
     results = run_all(scenarios, spec["now"], spec["seed"], factory, args.repeat, args.workers)
     summary = summarise(results)
