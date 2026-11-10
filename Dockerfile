@@ -10,10 +10,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     CAMPUS_SESSION_BUDGET_USD=0.25
 
 WORKDIR /app
-COPY requirements-agent.txt .
-RUN pip install --no-cache-dir -r requirements-agent.txt
-
+COPY pyproject.toml README.md LICENSE ./
 COPY campus_agent ./campus_agent
+RUN pip install --no-cache-dir .
 
 # Run as an unprivileged user; the school database and certificates live in /data.
 RUN useradd --create-home --uid 10001 campus && mkdir -p /data && chown campus /data

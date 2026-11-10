@@ -1,19 +1,15 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.so
 *.egg-info/
 dist/
 build/
-ENSTA_DATASET/token.json
+.ruff_cache/
+.pytest_cache/
 
-# Virtual env
+# Virtual environments
 .venv/
 venv/
-ENV/
-env/
 
 # OS / IDE
 .DS_Store
@@ -28,22 +24,7 @@ Thumbs.db
 *.pem
 *.key
 
-# Logs / runtime
-conversations/
-tmp/
-*.log
-
-# HuggingFace / SentenceTransformers cache (optional)
-.cache/
-.hf_cache/
-
-# Local runtime artifacts (never commit)
-.env
-cloudflared*
-cert.pem
-config.yml
-*.log
-ENSTA_DATASET/04_index/backups/
-
-# Campus agent runtime data (database, generated certificates, logs); recreated by `python -m campus_agent.seed`
+# Runtime data of the campus agent (database, visitor copies, certificates, ledger);
+# recreated by `python -m campus_agent.seed`
 campus_data/
+*.log

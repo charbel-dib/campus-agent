@@ -15,7 +15,6 @@ rules, permissions and audit trail are the same as everywhere else (channel ``mc
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import sys

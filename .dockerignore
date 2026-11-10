@@ -3,11 +3,8 @@
 .env
 .env.*
 campus_data
-ENSTA_DATASET
 eval
 tests
-static
-templates
 docs
 **/__pycache__
 *.pyc

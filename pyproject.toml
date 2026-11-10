@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "campus-agent"
+version = "1.0.0"
+description = "An AI agent for a school's calendars, rooms and student office, with human confirmation of every change"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Charbel Dib" }]
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31,<3.0",
+    "reportlab>=4.0,<6.0",
+    "starlette>=0.37,<2.0",
+    "uvicorn>=0.30,<1.0",
+    "anyio>=4.0,<5.0",
+    "mcp>=2.3,<3.0",
+    "tzdata>=2024.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+dense = ["sentence-transformers>=3.0", "numpy>=1.26"]   # optional E5 document search (CAMPUS_DOCS_RETRIEVER=dense)
+
+[project.urls]
+Homepage = "https://github.com/charbel-dib/campus-agent"
+Demo = "https://agent-campus.onrender.com"
+
+[tool.setuptools.packages.find]
+include = ["campus_agent*"]
+
+[tool.setuptools.package-data]
+campus_agent = ["data/docs/*.md", "static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["eval/results"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+# E501: the agent's instructions are long prose strings; E731: named lambdas are used deliberately
+ignore = ["E501", "E731"]
