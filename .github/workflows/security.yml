@@ -27,7 +27,7 @@ jobs:
       - name: Static analysis (medium severity and above)
         run: bandit -c pyproject.toml -r campus_agent -ll -q
       - name: Software bill of materials
-        run: cyclonedx-py environment --output-format JSON --outfile sbom.cdx.json
+        run: cyclonedx-py environment --output-format JSON -o sbom.cdx.json
       - uses: actions/upload-artifact@v4
         with:
           name: sbom
@@ -43,3 +43,9 @@ jobs:
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.58.1 image \
             --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 --no-progress campus-agent
+      - name: Where the findings are (on failure)
+        if: failure()
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.58.1 image -q \
+            --severity CRITICAL,HIGH --ignore-unfixed --format json campus-agent \
+            | jq -r '.Results[] | .Target as $t | (.Vulnerabilities // [])[] | "\($t)  \(.PkgName) \(.InstalledVersion)  \(.PkgPath // "-")  \(.VulnerabilityID)"'
