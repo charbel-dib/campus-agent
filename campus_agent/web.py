@@ -347,7 +347,7 @@ class SecurityHeaders:
 
     def __init__(self, app, frame_ancestors: str = "'none'"):
         self.app = app
-        # frame-ancestors is configurable so a host page (e.g. a Hugging Face Space) may embed the demo.
+        # frame-ancestors is configurable so a trusted host page may embed the demo.
         self.HEADERS = {
             "x-content-type-options": "nosniff",
             "referrer-policy": "no-referrer",

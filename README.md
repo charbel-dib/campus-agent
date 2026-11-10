@@ -1,6 +1,6 @@
 # Ker Avel campus agent
 
-[![Tests](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml/badge.svg)](https://github.com/charbel-dib/ensta_chatbot/actions/workflows/tests.yml)
+[![Tests](https://github.com/charbel-dib/campus-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/charbel-dib/campus-agent/actions/workflows/tests.yml)
 
 **Live demo: [agent-campus.onrender.com](https://agent-campus.onrender.com)**, no sign-up; each
 visitor gets a private copy of the school. Built by [Charbel Dib](https://www.linkedin.com/in/charbel-dib7)
@@ -15,10 +15,10 @@ It runs on a fictional school, *École d'ingénieurs Ker Avel*: 290 students, 30
 26 rooms and a full semester, all generated. The same tools are served to a web interface, through
 the Claude API, and to any MCP client such as Claude Desktop.
 
-This repository started as a RAG chatbot over the ENSTA website ([version 0](docs/ensta-rag.md),
-still in `app.py`). The agent is the next step: from answering questions to doing the work. Its
-document search uses BM25 by default, with the E5 embeddings of version 0 as an option
-(`CAMPUS_DOCS_RETRIEVER=dense`).
+This project grew out of a RAG chatbot over the ENSTA website, kept as it was in
+[ensta-rag-assistant](https://github.com/charbel-dib/ensta-rag-assistant) (version 0). The agent is the
+next step: from answering questions to doing the work. Its document search uses BM25 by default, with
+the E5 embeddings of version 0 as an option (`pip install ".[dense]"`, `CAMPUS_DOCS_RETRIEVER=dense`).
 
 ## In one minute
 
@@ -37,12 +37,12 @@ Sonnet 5.5 passes the same scenarios at about **24 times the cost**, so Haiku is
 - **Permissions live on the server**, not in the prompt: a student who talks the model into
   asking for someone else's grades still gets a refusal from the tool.
 - **Measured**: 41 scenarios checked on the database after each run (12 of them held out), plus
-  87 tests that need no model call.
+  88 tests that need no model call.
 
 ## Try it
 
 ```bash
-pip install -r requirements-agent.txt
+pip install -e ".[dev]"
 echo ANTHROPIC_API_KEY=sk-ant-... > .env      # set a monthly spend limit in the Anthropic console first
 
 python -m campus_agent.cli ask --as stu-0001 "Prends-moi un rendez-vous avec M. Le Goff" -v
@@ -156,7 +156,7 @@ every write tool carries `destructiveHint` so the client asks the user first.
 - **Robustness.** Retries with back-off on rate limits and overloads, timeouts, tool errors
   returned to the model so it can recover, history trimmed only on turn boundaries.
 - **Engineering.** Typed settings from the environment, a dependency-light core (standard library,
-  `requests`, `reportlab`), 87 tests for the agent, CI that also builds the Docker image and probes it,
+  `requests`, `reportlab`), 88 tests, CI that also builds the Docker image and probes it,
   non-root container with a health check.
 
 ## Evaluation
@@ -241,7 +241,7 @@ Add the server to Claude Desktop's configuration (`claude_desktop_config.json`),
     "ker-avel": {
       "command": "python",
       "args": ["-m", "campus_agent.mcp_server", "--as", "tch-001"],
-      "env": { "PYTHONPATH": "C:/path/to/ensta_chatbot" }
+      "env": { "PYTHONPATH": "C:/path/to/campus-agent" }
     }
   }
 }
@@ -257,9 +257,10 @@ Add the server to Claude Desktop's configuration (`claude_desktop_config.json`),
 | `campus_agent/web.py`, `static/` | HTTP API and interface |
 | `campus_agent/mcp_server.py` | MCP server |
 | `campus_agent/seed.py`, `data/docs/` | Generated school and its written rules |
-| `eval/run_agent_eval.py` | Scenario evaluation |
-| `tests/` | Tests (agent, tools, rules, web, MCP, evaluation harness, and the v0 RAG) |
-| `app.py`, `ENSTA_DATASET/` | Version 0, the ENSTA RAG ([its README](docs/ensta-rag.md)) |
+| `eval/` | Scenario files, harness and results |
+| `tests/` | Tests: rules, tools, agent loop, web API, MCP server, evaluation harness |
+| `docs/` | Demo script and the [roadmap](docs/roadmap.md) of what comes next |
+| `pyproject.toml`, `Dockerfile`, `render.yaml` | Packaging, image, deployment |
 
 ## Limits and next steps
 
