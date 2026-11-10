@@ -31,7 +31,7 @@ jobs:
       - name: Skip without an API key (forks, first setup)
         if: env.ANTHROPIC_API_KEY == ''
         run: echo "::warning::ANTHROPIC_API_KEY is not set; the evaluation gate was skipped."
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: env.ANTHROPIC_API_KEY != ''
         with:
           python-version: "3.11"
