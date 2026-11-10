@@ -53,7 +53,7 @@ def load_passages(docs_dir: Path) -> list[Passage]:
     passages: list[Passage] = []
     for path in sorted(docs_dir.glob("*.md")):
         lines = path.read_text(encoding="utf-8").splitlines()
-        doc_title = next((l[2:].strip() for l in lines if l.startswith("# ")), path.stem)
+        doc_title = next((line[2:].strip() for line in lines if line.startswith("# ")), path.stem)
         section, buf, n = "Introduction", [], 0
 
         def flush():

@@ -352,7 +352,7 @@ def generate(conn, now: datetime, seed: int = 2026) -> dict:
 
     # Students: fixed personas first, then unique random names, filling each group
     students_by_group: dict[str, list[str]] = defaultdict(list)
-    used_names = {(f, l) for f, l, _ in FIXED_STUDENTS}
+    used_names = {(first, last) for first, last, _ in FIXED_STUDENTS}
     queue = list(FIXED_STUDENTS)
     n = 0
     for gid, _name, year, _track in GROUPS:
