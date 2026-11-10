@@ -38,14 +38,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t campus-agent .
-      # Trivy run from its image at a pinned version rather than from a moving action reference.
+      # Scan the container's final filesystem, flattened: what runs is what is checked. The layer scan kept
+      # reporting pip 24.0 and setuptools 70.3.0 after the build had replaced or deleted them. Trivy runs from
+      # its image at a pinned version rather than from a moving action reference.
+      - name: Flatten the image
+        run: |
+          docker create --name scan campus-agent
+          docker export scan -o rootfs.tar
+          mkdir rootfs && sudo tar -xf rootfs.tar -C rootfs
       - name: Scan the image (fails on critical or high vulnerabilities that have a fix)
         run: |
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.58.1 image \
-            --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 --no-progress campus-agent
+          docker run --rm -v "$PWD/rootfs:/rootfs:ro" aquasec/trivy:0.58.1 rootfs --scanners vuln \
+            --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 --no-progress /rootfs
       - name: Where the findings are (on failure)
         if: failure()
         run: |
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.58.1 image -q \
-            --severity CRITICAL,HIGH --ignore-unfixed --format json campus-agent \
+          docker run --rm -v "$PWD/rootfs:/rootfs:ro" aquasec/trivy:0.58.1 rootfs -q --scanners vuln \
+            --severity CRITICAL,HIGH --ignore-unfixed --format json /rootfs \
             | jq -r '.Results[] | .Target as $t | (.Vulnerabilities // [])[] | "\($t)  \(.PkgName) \(.InstalledVersion)  \(.PkgPath // "-")  \(.VulnerabilityID)"'
