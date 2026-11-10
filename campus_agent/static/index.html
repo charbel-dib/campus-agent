@@ -51,10 +51,10 @@
     <section class="block">
       <h2>Ce qu'il y a sous le capot</h2>
       <dl class="facts">
-        <dt>Claude et 18 outils</dt>
+        <dt>Claude et 25 outils</dt>
         <dd>Une boucle d'appel d'outils sur l'API Claude (Haiku 5.5). Les outils sont filtrés par rôle : un étudiant
-          réserve une salle de travail, un enseignant déplace une séance de ses groupes, la scolarité examine
-          les justifications.</dd>
+          réserve une salle, justifie une absence ou dépose sa convention de stage ; un enseignant déplace une séance,
+          saisit et publie des notes ; la scolarité examine les justifications et signe les conventions.</dd>
         <dt>Rien sans confirmation</dt>
         <dd>Une écriture n'est jamais exécutée sur la seule demande du modèle. Le serveur la met en attente avec un
           résumé, l'utilisateur la confirme d'un clic, puis toutes les règles sont revérifiées avant d'écrire.</dd>
@@ -62,42 +62,53 @@
         <dd>Les permissions viennent du jeton de connexion, jamais de la conversation. L'agenda des autres n'apparaît
           qu'en disponibilités, comme le veut le RGPD. Les textes écrits par les utilisateurs sont traités comme
           des données, pas comme des consignes.</dd>
-        <dt>Les mêmes outils en MCP</dt>
-        <dd>Un serveur MCP expose les mêmes outils à Claude Desktop ou à tout client compatible, avec les mêmes règles
-          et le même journal d'audit.</dd>
-        <dt>Pensé pour la production</dt>
-        <dd>Journal de chaque appel d'outil, budgets par conversation et par jour, cache de prompt, coût affiché,
-          tests automatisés, image Docker construite et vérifiée en intégration continue.</dd>
+        <dt>Suivi en exploitation</dt>
+        <dd>Chaque échange produit une trace au format OpenTelemetry (onglet « Coulisses »). Le profil scolarité a un
+          onglet « Pilotage » : volumes, coût, latence, taux de confirmation, refus, retours des utilisateurs et
+          demandes non satisfaites. Un pouce sous chaque réponse, un bouton pour passer la main à la scolarité.</dd>
+        <dt>Données personnelles</dt>
+        <dd>Chacun peut exporter ou effacer ce que l'assistant garde sur lui. Les conversations et les traces sont
+          purgées après trente jours ; les traces ne contiennent aucun texte de conversation.</dd>
+        <dt>Branché sur les outils d'une école</dt>
+        <dd>Agenda en abonnement iCalendar (essayez le lien sous « Ma semaine »), import d'un export d'emploi du temps,
+          envoi par SMTP, agenda CalDAV, tickets GLPI, devoirs Moodle, connexion OpenID Connect, et les mêmes outils
+          servis en MCP à Claude Desktop. Dans cette démonstration, seuls l'agenda iCalendar et le MCP local sont
+          actifs ; le reste se lance avec le fichier docker-compose du dépôt.</dd>
       </dl>
     </section>
 
     <section class="block">
       <h2>Comment je l'ai évalué</h2>
-      <p>41 scénarios : lecture, règlement avec citation, planification, droits, demandes ambiguës, conflits et
-        injection de consignes. Après chaque exécution, les vérifications portent sur la base de données, les
-        outils appelés et la réponse. Aucun modèle n'en note un autre.</p>
+      <p>170 tâches en neuf suites, inspirées des bancs d'essai de référence : conversations avec un utilisateur
+        simulé (τ-bench), choix d'outil et d'arguments (BFCL), pièges (ToolSandbox), injection de consignes
+        (AgentDojo), fuites de données avec valeurs témoins, hallucinations, robustesse, nouveaux domaines et
+        non-régression. Chaque tâche est rejouée quatre fois. Les vérifications portent sur la base de données, les
+        outils appelés et la réponse ; aucun modèle n'en note un autre.</p>
       <table class="results">
-        <thead><tr><th>Modèle et scénarios</th><th>Réussis</th><th>Coût par scénario</th></tr></thead>
+        <thead><tr><th>Claude Haiku 5.5, version 2.0</th><th>Résultat</th></tr></thead>
         <tbody>
-          <tr><td>Haiku 5.5, premier essai</td><td>24 / 29</td><td>0,08 centime</td></tr>
-          <tr><td>Haiku 5.5 après corrections, 3 passes</td><td>87 / 87</td><td>0,06 centime</td></tr>
-          <tr><td>Haiku 5.5, 12 scénarios gardés de côté, 3 passes</td><td>35 / 36</td><td>0,08 centime</td></tr>
-          <tr><td>Sonnet 5.5, les 41 scénarios</td><td>40 / 41</td><td>1,5 centime</td></tr>
+          <tr><td>712 exécutions (170 tâches, 4 essais, injection avec et sans attaque)</td><td>707 réussies (99 %)</td></tr>
+          <tr><td>Les quatre essais d'une même tâche réussis (pass^4), tâches gardées de côté</td><td>96 %</td></tr>
+          <tr><td>Attaques par injection réussies</td><td>0 sur 32</td></tr>
+          <tr><td>Fuites de données d'un autre utilisateur</td><td>0 sur 56 tentatives</td></tr>
+          <tr><td>Coût moyen et latence médiane par tâche</td><td>0,07 centime, 4,7 s</td></tr>
         </tbody>
       </table>
-      <p>Haiku fait aussi bien que Sonnet pour vingt-quatre fois moins cher : c'est le modèle par défaut.</p>
+      <p>Sur les 52 tâches gardées de côté (54 exécutions), Sonnet 5.5 réussit tout pour vingt fois le prix de Haiku, qui en réussit
+        99 % : Haiku reste le modèle par défaut. Une modification de l'agent ne passe en production que si
+        l'évaluation, relancée automatiquement, ne montre ni fuite, ni injection réussie, ni baisse du taux de réussite.</p>
       <h3>Ce qui a cassé, et ce que j'en ai fait</h3>
       <ul class="breaks">
-        <li>Au premier essai, l'agent demandait « lequel ? » au lieu de proposer l'action. La carte de confirmation
-          rend cette question inutile : il propose désormais directement, et ne pose une question que s'il manque
-          une information.</li>
-        <li>Pour trouver la justification la plus ancienne, il prenait parfois le mauvais élément d'une longue liste.
-          La correction est dans l'outil, pas dans le prompt : tri à la demande et dates écrites en toutes lettres.</li>
-        <li>Face à « Annule mon cours » avec trois séances possibles, Sonnet proposait la plus probable au lieu de
-          demander. La carte affichait la séance et les cent étudiants concernés, mais c'est une limite connue.</li>
+        <li>Première campagne : 95 %. À la demande « trouve un créneau », l'agent proposait déjà la réservation ; à un
+          message en anglais, il répondait en français ; il filtrait les tickets sur un statut qui n'existe pas.
+          Corrigé dans les consignes et, pour le dernier point, dans l'outil lui-même.</li>
+        <li>Une de mes corrections a cassé autre chose : pour ne plus demander la période d'un rendez-vous, l'agent
+          s'est mis à réserver une salle sans date. La campagne suivante l'a montré (97,5 %), la règle a été resserrée.</li>
+        <li>Certains échecs venaient du banc d'essai : deux vérifications fausses, et un utilisateur simulé qui
+          refusait une proposition correcte. Ils sont comptés et expliqués, pas effacés.</li>
       </ul>
-      <p><a href="https://github.com/charbel-dib/campus-agent#evaluation" rel="noopener">Résultats détaillés et
-        transcriptions sur GitHub</a></p>
+      <p><a href="https://github.com/charbel-dib/campus-agent/blob/main/docs/evaluation.md" rel="noopener">Méthode, résultats détaillés et
+        analyse des échecs sur GitHub</a></p>
     </section>
 
     <footer class="foot">

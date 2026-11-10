@@ -6,6 +6,25 @@ Ce document sert à trois choses : piloter le travail bloc par bloc, alimenter l
 
 ---
 
+## État au 10 novembre 2026 (version 2.0.0)
+
+Ce qui suit dans ce document est le plan d'origine. Voici où il en est. « Fait » veut dire : codé, testé,
+documenté. Ce qui n'est pas fait n'est revendiqué nulle part (README, page de démo, CV).
+
+| Bloc | Fait | Non fait, ou fait autrement |
+|---|---|---|
+| 0. Deux dépôts | Dépôt RAG séparé, `pyproject.toml`, ruff, README anglais | — |
+| A. Évaluation | 170 tâches, 9 suites, utilisateur simulé, pass^k, canaris, injection, ancrage, intervalles, verrou CI, rapport, comparaison Sonnet | Juge LLM calibré ; API Batches ; jeu adverse écrit par un tiers ; commentaire automatique sur la PR |
+| B. Exploitation | Traces GenAI (stockées, export OTLP), onglet Pilotage, retours, relais humain (bouton), consignes versionnées, drapeaux, SLO, runbook, export / effacement / purge | PostgreSQL ; alertes automatiques ; journaux JSON corrélés ; drapeaux par rôle |
+| C. Sécurité | Modèle de menaces, tableau OWASP, un test nommé par contrôle, MCP distant avec jetons liés à la ressource, `security.yml`, Dependabot | Enregistrement des clients (côté fournisseur d'identité) ; SBOM attaché à une release (il est produit en CI) |
+| D. Intégrations | iCalendar (flux et import), boîte d'envoi vers SMTP / CalDAV / GLPI, Moodle, OIDC, fichier compose | GLPI et Moodle vérifiés sur la forme documentée de leurs API, pas sur un serveur ; compose et Keycloak non exercés en CI ; Microsoft Graph décrit, non codé |
+| E. Métier | Conventions de stage, saisie et publication de notes, inscription au rattrapage, guides par profil | PDF de la convention, relevé de notes, convocations ; règlement et interface en anglais (l'agent répond en anglais) |
+| F. Avancé | Étapes d'outils en direct (SSE) ; escalade de modèle, questions à choix, procédures à la demande, cache d'une heure (désactivés par défaut) | Texte de la réponse en flux continu ; mémoire utilisateur ; mesure comparative des options ; utilisateur simulé local |
+| Démo | Page mise à jour, onglets Coulisses et Pilotage, `/api/status` | Vidéo ; parcours guidé |
+| Documentation | Tout le tableau du §10 | — |
+
+---
+
 ## 0. Point de départ et cible
 
 ### Ce qui existe aujourd'hui [fait]

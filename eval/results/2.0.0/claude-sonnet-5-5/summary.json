@@ -1,0 +1,214 @@
+{
+ "meta": {
+  "version": "2.0.0",
+  "prompt_hash": "86170870dd46",
+  "model": "claude-sonnet-5-5",
+  "sim_model": "claude-haiku-5-5",
+  "now": "2026-11-16T09:00",
+  "seed": 2026,
+  "k": 1,
+  "effort": null
+ },
+ "global": {
+  "runs": 54,
+  "pass_rate": 1.0,
+  "checkable_claims": 341,
+  "unsupported_claims": 1,
+  "unsupported_claim_rate": 0.0029,
+  "runs_with_unsupported_claim": 0.019,
+  "tool_calls": 120,
+  "tool_call_error_rate": 0.0167,
+  "malformed_tool_call_rate": 0.0,
+  "agent_cost_usd": 0.7798,
+  "mean_cost_cents": 1.444,
+  "cache_read_share": 0.895,
+  "latency_p50_s": 7.12,
+  "latency_p95_s": 34.96,
+  "crashed_runs": 0
+ },
+ "suites": {
+  "tasks": {
+   "runs": 8,
+   "tasks": 8,
+   "trials": 1,
+   "pass^1": 1.0,
+   "pass^1_ci95": [
+    1.0,
+    1.0
+   ],
+   "agent_cost_usd": 0.1575,
+   "mean_cost_cents": 1.968,
+   "sim_cost_usd": 0.0055,
+   "latency_p50_s": 17.82,
+   "latency_p95_s": 40.29,
+   "errors": 0,
+   "mean_user_turns": 1.5
+  },
+  "tool_calls": {
+   "runs": 9,
+   "tasks": 9,
+   "trials": 1,
+   "pass^1": 1.0,
+   "pass^1_ci95": [
+    1.0,
+    1.0
+   ],
+   "agent_cost_usd": 0.108,
+   "mean_cost_cents": 1.2,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 6.64,
+   "latency_p95_s": 32.05,
+   "errors": 0,
+   "accuracy_by_category": {
+    "irrelevance": 1.0,
+    "missing_parameter": 1.0,
+    "multiple": 1.0,
+    "simple": 1.0
+   }
+  },
+  "traps": {
+   "runs": 3,
+   "tasks": 3,
+   "trials": 1,
+   "pass^1": 1.0,
+   "pass^1_ci95": [
+    1.0,
+    1.0
+   ],
+   "agent_cost_usd": 0.0432,
+   "mean_cost_cents": 1.44,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 7.71,
+   "latency_p95_s": 34.96,
+   "errors": 0,
+   "milestone_rate": 1.0,
+   "minefield_hit_rate": 0.0
+  },
+  "injection": {
+   "runs": 4,
+   "tasks": 4,
+   "trials": 1,
+   "pass^1": 1.0,
+   "pass^1_ci95": [
+    1.0,
+    1.0
+   ],
+   "agent_cost_usd": 0.0435,
+   "mean_cost_cents": 1.088,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 7.47,
+   "latency_p95_s": 30.62,
+   "errors": 0,
+   "utility_without_attack": 1.0,
+   "utility_under_attack": 1.0,
+   "attack_success_rate": 0.0,
+   "attack_resistance_pass^k": 1.0
+  },
+  "access": {
+   "runs": 6,
+   "tasks": 6,
+   "trials": 1,
+   "pass^1": 1.0,
+   "pass^1_ci95": [
+    1.0,
+    1.0
+   ],
+   "agent_cost_usd": 0.0719,
+   "mean_cost_cents": 1.198,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 7.18,
+   "latency_p95_s": 31.59,
+   "errors": 0,
+   "leak_rate": 0.0,
+   "leaks_in_tool_results": 0,
+   "leaks_in_replies": 0,
+   "positive_controls_ok": null
+  },
+  "grounding": {
+   "runs": 4,
+   "tasks": 4,
+   "trials": 1,
+   "pass^1": 1.0,
+   "pass^1_ci95": [
+    1.0,
+    1.0
+   ],
+   "agent_cost_usd": 0.0331,
+   "mean_cost_cents": 0.827,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 7.09,
+   "latency_p95_s": 30.77,
+   "errors": 0,
+   "accuracy_by_category": {
+    "facts": 1.0,
+    "false_premise": 1.0,
+    "unanswerable": 1.0
+   }
+  },
+  "robustness": {
+   "runs": 3,
+   "tasks": 3,
+   "trials": 1,
+   "pass^1": 1.0,
+   "pass^1_ci95": [
+    1.0,
+    1.0
+   ],
+   "agent_cost_usd": 0.0934,
+   "mean_cost_cents": 3.114,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 10.23,
+   "latency_p95_s": 20.69,
+   "errors": 0,
+   "accuracy_by_variant": {
+    "compound": 1.0,
+    "english": 1.0,
+    "long_context": 1.0
+   }
+  },
+  "domains": {
+   "runs": 5,
+   "tasks": 5,
+   "trials": 1,
+   "pass^1": 1.0,
+   "pass^1_ci95": [
+    1.0,
+    1.0
+   ],
+   "agent_cost_usd": 0.0569,
+   "mean_cost_cents": 1.137,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 6.44,
+   "latency_p95_s": 7.39,
+   "errors": 0
+  },
+  "core": {
+   "runs": 12,
+   "tasks": 12,
+   "trials": 1,
+   "pass^1": 1.0,
+   "pass^1_ci95": [
+    1.0,
+    1.0
+   ],
+   "agent_cost_usd": 0.1724,
+   "mean_cost_cents": 1.436,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 5.91,
+   "latency_p95_s": 12.54,
+   "errors": 0
+  }
+ },
+ "splits": {
+  "heldout": {
+   "tasks": 54,
+   "trials": 1,
+   "pass^1": 1.0,
+   "pass^1_ci95": [
+    1.0,
+    1.0
+   ],
+   "runs": 54
+  }
+ }
+}

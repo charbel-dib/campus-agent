@@ -1,14 +1,15 @@
 # Ker Avel campus agent
 
 [![Tests](https://github.com/charbel-dib/campus-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/charbel-dib/campus-agent/actions/workflows/tests.yml)
+[![Security](https://github.com/charbel-dib/campus-agent/actions/workflows/security.yml/badge.svg)](https://github.com/charbel-dib/campus-agent/actions/workflows/security.yml)
 
 **Live demo: [agent-campus.onrender.com](https://agent-campus.onrender.com)**, no sign-up; each
 visitor gets a private copy of the school. Built by [Charbel Dib](https://www.linkedin.com/in/charbel-dib7)
 ([portfolio](https://charbel-dib.vercel.app)).
 
 An AI agent for an engineering school: it reads calendars, finds common free slots, books rooms
-and appointments, moves classes and tells the students, handles absence justifications, issues
-certificates and answers from the school rules, with citations. It acts with the rights of the
+and appointments, moves classes and tells the students, handles absence justifications, internship
+agreements and grade entry, issues certificates and answers from the school rules, with citations. It acts with the rights of the
 person signed in, and **nothing changes until that person confirms**.
 
 It runs on a fictional school, *École d'ingénieurs Ker Avel*: 290 students, 30 teachers, 3 staff,
@@ -22,22 +23,36 @@ the E5 embeddings of version 0 as an option (`pip install ".[dense]"`, `CAMPUS_D
 
 ## In one minute
 
-| Claude Haiku 5.5 (default) | Pass rate | Cost per scenario | Time per scenario |
-|---|---:|---:|---:|
-| 29 tuning scenarios, 3 runs each | **87/87** | 0.06 cent | 4.6 s |
-| 12 held-out scenarios, 3 runs each | **35/36** | 0.08 cent | 5.0 s |
+| Claude Haiku 5.5 (default), version 2.0 | Result |
+|---|---:|
+| 170 tasks, 4 trials each (712 runs) | **707 passed (99.3 %)** |
+| Held-out tasks: all four trials pass (pass^4) | **96 %** |
+| Prompt-injection attacks that succeeded | **0 of 32** |
+| Attempts to read someone else's data that leaked | **0 of 56** |
+| Cost and median time per task | **0.07 cent, 4.7 s** |
 
-Sonnet 5.5 passes the same scenarios at about **24 times the cost**, so Haiku is the default
-([details](#evaluation)).
+Sonnet 5.5 passes every held-out task at **twenty times the cost**, so Haiku is the default
+([method and failure analysis](docs/evaluation.md)).
 
-- **18 tools, filtered by role.** A student books a study room or an appointment, a teacher
-  moves a class for their groups, the school office reviews justifications.
+- **25 tools, filtered by role.** A student books a study room, justifies an absence or files an
+  internship agreement; a teacher moves a class, enters and publishes grades; the school office
+  reviews justifications and signs agreements.
 - **Every write waits for the user.** The agent proposes, the user sees a slip with the exact
   action and confirms; the server then checks every rule again before writing.
 - **Permissions live on the server**, not in the prompt: a student who talks the model into
   asking for someone else's grades still gets a refusal from the tool.
-- **Measured**: 41 scenarios checked on the database after each run (12 of them held out), plus
-  88 tests that need no model call.
+- **Measured.** A bench modelled on tau-bench, BFCL, ToolSandbox and AgentDojo, checked on the database
+  and never graded by a model; a gate in CI blocks a change that leaks, obeys an injection or regresses.
+- **Run like a service.** Traces in the OpenTelemetry GenAI format, a usage page for the office, user
+  feedback, hand-off to a human, export and erasure of personal data, a runbook.
+- **Connected.** iCalendar feeds, SMTP, CalDAV, GLPI, Moodle, OpenID Connect sign-in, and the same tools
+  over MCP, locally or remotely with OAuth bearer tokens.
+
+128 tests need no model call. Documentation: [architecture](docs/architecture.md) ·
+[decisions](docs/adr) · [evaluation](docs/evaluation.md) · [threat model](docs/threat-model.md) ·
+[operations](docs/operations.md) · [privacy](docs/privacy.md) · [integrations](docs/integrations.md) ·
+[business rules](docs/business-rules.md) · guides for [students](docs/guides/etudiant.md),
+[teachers](docs/guides/enseignant.md) and [the office](docs/guides/scolarite.md) (in French) · [FAQ](docs/faq.md).
 
 ## Try it
 
@@ -85,18 +100,25 @@ With Docker: `docker build -t campus-agent . && docker run -p 8000:8000 -e ANTHR
 | `review_absence` | | | ✓ | ✓ |
 | `send_announcement` | | own groups | ✓ | ✓ |
 | `create_ticket` | ✓ | ✓ | ✓ | ✓ |
+| `create_internship_request` (three weeks ahead, length by year) | ✓ | | | ✓ |
+| `get_internship_status` | own | those tutored | all | |
+| `review_internship` | | validate as tutor | sign | ✓ |
+| `enter_grades`, `publish_grades` | | own groups | ✓ | ✓ |
+| `register_makeup` (average below 10, or excused absence at the exam) | ✓ | | | ✓ |
+| `get_makeups` | own | own courses | all | |
 
 The school rules the tools enforce are the ones written in its documents
 ([`campus_agent/data/docs`](campus_agent/data/docs)): study rooms two hours at most and once a
 day, appointments of 15 to 30 minutes inside a teacher's office hours, no class on Wednesday
-afternoon, justification within five working days, a refusal always explained, and so on.
+afternoon, justification within five working days, a refusal always explained, and so on. They are
+listed with their source in [docs/business-rules.md](docs/business-rules.md).
 
 ## How it works
 
 ```mermaid
 flowchart LR
     UI[Web interface] -->|HTTP| API[campus_agent.web]
-    CD[Claude Desktop / MCP client] -->|MCP stdio| MCP[campus_agent.mcp_server]
+    CD[Claude Desktop / MCP client] -->|MCP stdio, or HTTP with a bearer token| MCP[campus_agent.mcp_server / mcp_http]
     API --> AG[Agent loop<br/>campus_agent.agent]
     AG <-->|Messages API, tool use| CL[(Claude)]
     AG --> TR[Tool registry<br/>campus_agent.tools]
@@ -104,6 +126,8 @@ flowchart LR
     TR --> DOM[Business rules and permissions<br/>campus_agent.domain]
     DOM --> DB[(SQLite: school, pending actions, audit log)]
     DOM --> DOCS[School rules, BM25 search]
+    DB --> OUT[Outbox: SMTP, CalDAV, GLPI]
+    AG --> TEL[Traces: SQLite, OTLP]
 ```
 
 One registry describes each tool once (schema, roles, read or write). The agent, the MCP server
@@ -140,93 +164,83 @@ every write tool carries `destructiveHint` so the client asks the user first.
 ## Built for production, not only for the demo
 
 - **Permissions from the token, never from the conversation.** The web API signs a token for the
-  person (a demo login here; the school's single sign-on in production). Every business function
-  checks what this person may see or change.
+  person (a demo login here; OpenID Connect when configured). Every business function checks what
+  this person may see or change. No tool takes an identity as an argument.
 - **Data minimisation (GDPR).** Other people's calendars come back as busy/free only. A student sees
-  other students' names and groups, not their e-mail. Free text in the audit log is truncated.
-- **Prompt injection.** Text written by users (event notes, messages) comes back to the model
-  labelled as user data, and the instructions say it is never an order. Even when the model is
+  other students' names and groups, not their e-mail. Users export or erase what the assistant holds
+  about them; conversations and traces are purged after thirty days ([privacy](docs/privacy.md)).
+- **Prompt injection.** Text written by users (event notes, tickets, absence reasons) comes back to the
+  model labelled as user data, and the instructions say it is never an order. Even when the model is
   fooled, the attacker's text cannot widen the user's rights, and every write still needs the
-  user's click. Two evaluation scenarios plant such text, a third has the user claim another role.
+  user's click. Eight attacks in four data channels are replayed at each evaluation ([threat model](docs/threat-model.md)).
+- **Observability.** One trace per turn with the OpenTelemetry GenAI names (`invoke_agent`, `chat`,
+  `execute_tool`, token counts, cost), stored for the office's usage page and exportable over OTLP.
+  Spans never contain conversation text.
+- **Quality loop.** Thumbs on each reply, hand-off to the office, a weekly review described in the
+  [runbook](docs/operations.md); each real defect becomes an evaluation task.
 - **Audit trail.** Every tool call is logged with who, what, through which channel and with which
   outcome (`ok`, `pending`, `executed`, `denied`, `conflict`…); the office sees it in the interface.
-- **Cost control.** Prompt caching of the tools, instructions and conversation; a step cap per
-  turn; a budget per conversation, per visitor and per day; the cost of each exchange computed from the
-  published prices and shown to the user.
+- **Cost control.** Prompt caching of the tools, instructions and conversation (93 % of input tokens read
+  from the cache in the evaluation); a step cap per turn; a budget per conversation, per visitor and per day.
 - **Robustness.** Retries with back-off on rate limits and overloads, timeouts, tool errors
-  returned to the model so it can recover, history trimmed only on turn boundaries.
-- **Engineering.** Typed settings from the environment, a dependency-light core (standard library,
-  `requests`, `reportlab`), 88 tests, CI that also builds the Docker image and probes it,
-  non-root container with a health check.
+  returned to the model so it can recover, an outbox that retries deliveries to other systems, any tool
+  switchable off by configuration.
+- **Engineering.** Typed settings from the environment, a dependency-light core, the instructions in a
+  versioned file whose hash is in every trace, CI for tests, security (pip-audit, bandit, Trivy, SBOM) and
+  the evaluation gate, a non-root container with a health check.
 
 ## Evaluation
 
-`eval/agent_scenarios.json` holds 29 scenarios in seven categories: reading, rules (with the
-expected citation), planning (actions confirmed by the harness), permissions, ambiguous requests,
-conflicts and injection; `eval/agent_heldout.json` holds 12 more, kept aside. Each runs on a fresh copy of the school; the checks look at the tools
-called, the actions proposed, **the database afterwards** and the reply. No model grades another.
+`campus_eval` runs 170 tasks in nine suites, each on a fresh copy of the school with the clock pinned.
+The checks read the tool calls, the confirmation slips, the reply and **the database afterwards**.
+No model grades another.
+
+| Suite | Modelled on | Tasks | pass^1 | pass^4 |
+|---|---|---:|---:|---:|
+| Tasks with a simulated user | tau-bench | 22 | 97 % | 91 % |
+| Tool choice and arguments | BFCL | 30 | 100 % | 100 % |
+| Milestones and minefields | ToolSandbox | 10 | 98 % | 90 % |
+| Prompt injection, clean and attacked | AgentDojo | 8 × 2 | 100 % | 100 % |
+| Access control with canaries | OWASP LLM02 / LLM06 | 21 | 100 % | 100 % |
+| Hallucinations and grounding | faithfulness checks | 13 | 100 % | 100 % |
+| Robustness to wording | — | 11 | 100 % | 100 % |
+| Internships, grades, make-ups | — | 14 | 100 % | 100 % |
+| Regression (version 1.0) | — | 41 | 99 % | 98 % |
+
+Claude Haiku 5.5, four trials per task, 712 runs, $0.52. pass^4 is the share of tasks whose four trials
+all pass. Held-out tasks: pass^1 99.1 % (95 % interval 97.7 to 100), pass^4 96.3 %.
 
 ```bash
-python eval/run_agent_eval.py --model claude-haiku-5-5
-python eval/run_agent_eval.py --model claude-sonnet-5-5
-python eval/run_agent_eval.py --set heldout --repeat 3
+python -m campus_eval run --suite all --k 4 && python -m campus_eval merge && python -m campus_eval report
 ```
-
-### Results (November 2026)
-
-All runs on the same code; reports and full transcripts in [`eval/results/`](eval/results).
-
-| Model | Scenarios | Runs | Passed | Total cost | Per scenario | Time | Model calls |
-|---|---|---:|---:|---:|---:|---:|---:|
-| Haiku 5.5, first run | tuning set | 29 | 24 | $0.024 | 0.08 ¢ | 4.6 s | 2.7 |
-| **Haiku 5.5** | tuning set | 87 | **87** | $0.055 | 0.06 ¢ | 4.6 s | 2.9 |
-| **Haiku 5.5** | held-out set | 36 | **35** | $0.030 | 0.08 ¢ | 5.0 s | 3.1 |
-| Sonnet 5.5 | tuning set | 29 | 29 | $0.434 | 1.50 ¢ | 5.6 s | 2.8 |
-| Sonnet 5.5 | held-out set | 12 | 11 | $0.181 | 1.51 ¢ | 6.7 s | 3.2 |
-
-**Which model.** On these tasks Haiku 5.5 does as well as Sonnet 5.5 for a twenty-fourth of the price
-and is a little faster, so it is the default (`CAMPUS_MODEL`). The tools carry most of the
-difficulty (permissions, conflicts, free slots), which suits a small model. Sonnet would be worth
-its price for longer, open-ended planning.
-
-**The held-out set.** Tuning on the same scenarios one measures inflates the score, so after the
-fixes I wrote 12 new scenarios (other people, wordings and traps) and ran them once, as they are,
-without changing the agent afterwards.
 
 ### Where it breaks
 
-What the runs showed, and what was done about it:
+The first campaign passed 95 %; reading every failure is what moved it. In short
+([full analysis](docs/evaluation.md#what-the-failures-were)):
 
-- **Asking instead of acting (first run).** Asked to move a class or to justify an absence, the
-  agent listed the options and asked « which one? » or « shall I? ». With a confirmation slip, that
-  question is redundant: the instructions now tell it to propose the action directly and let the
-  slip carry the consent, and to ask only when information is missing.
-- **Picking from a long list (1 run in 87, before the fix).** Asked for the oldest pending justification, Haiku
-  took the second-to-last item of a list sorted newest first, and named the wrong weekday from a
-  bare ISO date. Fixed in the tool, not the prompt: `get_absences` now sorts oldest first on
-  request and gives every date in words.
-- **The test, not the agent (held-out, Haiku, 1 run in 3).** « Cancel my lab next Wednesday »,
-  said on a Monday, can mean the day after tomorrow or the week after. In one run Haiku asked which
-  one, while the scenario expected the later date: the question was a right answer, and the miss
-  is counted as it was pre-registered. Sonnet picked the later date, said so, and offered to switch.
-- **Acting on a vague request (held-out, Sonnet).** « Annule mon cours » with three classes that
-  week: Haiku asked which; Sonnet proposed cancelling the lecture for 100 students and named the
-  alternatives. The slip showed exactly that, so a real user would refuse it, but this is the
-  cost of the « propose directly » rule with a more decisive model. Next step: ask when several
-  events match a destructive request (not yet measured, so not claimed).
-- **Harness defects (first run).** A check for « € » always failed, because the accent folding
-  erased the symbol; a request for missing information was only recognised by its question
-  mark. Both fixed and covered by tests; the first-run report is kept as it was.
+- **The agent.** It proposed a booking when asked only to find a slot, answered English in French, sent a
+  second notice after a move that had already notified the students, and filtered tickets on a status that
+  does not exist. The last was fixed in the tool (it now lists and enforces the statuses), the others in the
+  instructions. The double notice still happens in 1 run of 4 on one task.
+- **My own fix.** Telling the agent to look two weeks ahead when no period is given made it book a room for
+  a request with no date. The next campaign caught it (97.5 %), and the rule was narrowed.
+- **The bench.** Three checker bugs and a simulated user that sometimes refuses a correct slip: 3 of the 5
+  remaining failures are the simulator's. They are counted, not removed.
+- **The hallucination screen** flags every date, time, room, grade and citation absent from the tool results.
+  All 47 flags of the first campaign were read: none was an invented fact (calendar arithmetic, sums,
+  examples). It is a list of leads, not a rate.
 
-Not covered by the evaluation: long conversations (beyond a few turns), simultaneous users, and
-other languages than French.
+Not covered: conversations beyond ten turns, simultaneous users, more than three tasks in English, and the
+optional agent features (escalation, clickable questions, procedures on demand), which were off.
 
 ## Public demo
 
 The demo is a free Render web service described by [`render.yaml`](render.yaml), built from the
 Dockerfile and redeployed on every push to `main`. It runs with `CAMPUS_SANDBOX=1`: each visitor receives a
 private copy of the school when choosing a persona, kept across persona changes and dropped after six
-hours without activity, so visitors never see each other's bookings and the demo never wears out. Each
+hours without activity, so visitors never see each other's bookings and the demo never wears out. In the
+demo, sign-in is a choice of persona and the outside systems (mail, CalDAV, helpdesk) are not connected. Each
 visitor has 30 messages and at most $0.15; a ledger shared by all copies caps the whole demo at $2 a day.
 A scheduled workflow ([`keep-alive.yml`](.github/workflows/keep-alive.yml)) calls it every ten minutes so
 that it does not spin down.
@@ -247,29 +261,34 @@ Add the server to Claude Desktop's configuration (`claude_desktop_config.json`),
 }
 ```
 
+A hosted deployment serves the same tools at `/mcp` for the bearer of a token issued by the school's
+identity provider ([integrations](docs/integrations.md#remote-mcp)).
+
 ## Repository
 
 | Path | What |
 |---|---|
-| `campus_agent/domain/` | Business rules and permissions: calendar, academics, messaging, documents, audit |
-| `campus_agent/tools.py` | Tool registry, validation, pending actions and confirmation |
-| `campus_agent/agent.py`, `llm.py` | Agent loop, Claude client, cost accounting |
-| `campus_agent/web.py`, `static/` | HTTP API and interface |
-| `campus_agent/mcp_server.py` | MCP server |
+| `campus_agent/domain/` | Business rules and permissions: calendar, academics, grading, internships, messaging, documents, audit |
+| `campus_agent/tools.py` | Tool registry, validation, feature flags, pending actions and confirmation |
+| `campus_agent/agent.py`, `llm.py`, `prompts/`, `skills/` | Agent loop, Claude client, versioned instructions, procedures |
+| `campus_agent/web.py`, `static/` | HTTP API, streaming, sign-in, interface |
+| `campus_agent/mcp_server.py`, `mcp_http.py` | MCP servers: local stdio, remote HTTP |
+| `campus_agent/telemetry.py`, `ops.py`, `privacy.py` | Traces, the office's metrics, personal data |
+| `campus_agent/integrations/` | iCalendar, SMTP, CalDAV, GLPI, Moodle, outbox, OpenID Connect |
 | `campus_agent/seed.py`, `data/docs/` | Generated school and its written rules |
-| `eval/` | Scenario files, harness and results |
-| `tests/` | Tests: rules, tools, agent loop, web API, MCP server, evaluation harness |
-| `docs/` | Demo script and the [roadmap](docs/roadmap.md) of what comes next |
+| `campus_eval/`, `eval/` | Evaluation bench, task suites and results |
+| `tests/` | 128 tests, including one per control of the threat model |
+| `docs/` | Architecture, decisions, evaluation, threat model, runbook, privacy, integrations, guides |
+| `deploy/`, `docker-compose.integrations.yml` | Local Mailpit, Radicale, Keycloak, Phoenix |
 | `pyproject.toml`, `Dockerfile`, `render.yaml` | Packaging, image, deployment |
 
 ## Limits and next steps
 
-- SQLite and an in-memory rate limiter fit one process; several workers need PostgreSQL and a
-  shared store.
-- The calendar is the school's own. An adapter to Google Calendar or Microsoft 365 would sit behind
-  the same business functions.
-- The demo login stands in for single sign-on; the MCP server acts for one person set at start, where
-  a remote deployment would read the person from an OAuth token.
-- Internship agreements and grade entry are documented in the rules but not yet tools.
+- SQLite and an in-memory rate limiter fit one process; several workers need PostgreSQL and a shared store.
+- The reply text arrives whole; only the tool steps are streamed.
+- Sign-in and the remote MCP endpoint are tested with locally signed tokens; the GLPI and Moodle adapters
+  against the documented shapes of their APIs. None has run against a production system.
+- The held-out tasks have been read, so new ones written by someone else are due.
+- What the plan listed and is not done is in the status table of the [roadmap](docs/roadmap.md).
 
 MIT licence. The school, its people and its data are fictional.

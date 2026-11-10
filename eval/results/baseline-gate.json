@@ -1,0 +1,19 @@
+{
+ "global": {
+  "runs": 352,
+  "pass_rate": 0.994,
+  "checkable_claims": 1748,
+  "unsupported_claims": 17,
+  "unsupported_claim_rate": 0.0097,
+  "runs_with_unsupported_claim": 0.043,
+  "tool_calls": 558,
+  "tool_call_error_rate": 0.0573,
+  "malformed_tool_call_rate": 0.0072,
+  "agent_cost_usd": 0.2098,
+  "mean_cost_cents": 0.06,
+  "cache_read_share": 0.946,
+  "latency_p50_s": 4.46,
+  "latency_p95_s": 7.7,
+  "crashed_runs": 0
+ }
+}

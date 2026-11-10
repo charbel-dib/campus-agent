@@ -142,6 +142,9 @@ def cmd_merge(args) -> None:
                           "suites": {s: {k2: v for k2, v in m.items() if not isinstance(v, dict)}
                                      for s, m in summary["suites"].items()}}
     latest_path.write_text(json.dumps(latest, ensure_ascii=False, indent=1), encoding="utf-8")
+    if not os.environ.get("CAMPUS_EVAL_RESULTS"):      # the demo page reads the same figures (/api/eval-summary)
+        (Path(campus_agent.__file__).parent / "static" / "eval-latest.json").write_text(
+            json.dumps(latest, ensure_ascii=False, indent=1), encoding="utf-8")
     print(report.model_report(args.model, summary, results, meta)[:3000])
 
 
