@@ -48,3 +48,8 @@ extend-exclude = ["eval/results"]
 select = ["E", "F", "W"]
 # E501: the agent's instructions are long prose strings; E731: named lambdas are used deliberately
 ignore = ["E501", "E731"]
+
+[tool.bandit]
+# B608 (SQL built from strings): every dynamic statement here assembles fixed fragments and "?" placeholders
+# (a WHERE clause list, an IN list sized to its values); values are always bound, never interpolated.
+skips = ["B608"]

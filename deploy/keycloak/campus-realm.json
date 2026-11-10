@@ -1,0 +1,112 @@
+{
+ "realm": "campus",
+ "enabled": true,
+ "displayName": "École d'ingénieurs Ker Avel (fictive)",
+ "clients": [
+  {
+   "clientId": "campus-agent",
+   "name": "Campus agent (web sign-in)",
+   "enabled": true,
+   "publicClient": true,
+   "standardFlowEnabled": true,
+   "directAccessGrantsEnabled": false,
+   "redirectUris": [
+    "http://localhost:8002/api/oidc/callback"
+   ],
+   "webOrigins": [
+    "http://localhost:8002"
+   ],
+   "attributes": {
+    "pkce.code.challenge.method": "S256"
+   }
+  },
+  {
+   "clientId": "campus-mcp",
+   "name": "Campus tools over MCP",
+   "enabled": true,
+   "publicClient": true,
+   "standardFlowEnabled": true,
+   "redirectUris": [
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+   ],
+   "attributes": {
+    "pkce.code.challenge.method": "S256"
+   },
+   "protocolMappers": [
+    {
+     "name": "mcp-audience",
+     "protocol": "openid-connect",
+     "protocolMapper": "oidc-audience-mapper",
+     "config": {
+      "included.custom.audience": "http://localhost:8002/mcp",
+      "access.token.claim": "true",
+      "id.token.claim": "false"
+     }
+    }
+   ]
+  }
+ ],
+ "users": [
+  {
+   "username": "stu-0001",
+   "enabled": true,
+   "email": "ines.haddad@ker-avel.example",
+   "emailVerified": true,
+   "firstName": "Inès",
+   "lastName": "Haddad",
+   "credentials": [
+    {
+     "type": "password",
+     "value": "demo",
+     "temporary": false
+    }
+   ]
+  },
+  {
+   "username": "stu-0003",
+   "enabled": true,
+   "email": "mael.guivarch@ker-avel.example",
+   "emailVerified": true,
+   "firstName": "Maël",
+   "lastName": "Guivarc'h",
+   "credentials": [
+    {
+     "type": "password",
+     "value": "demo",
+     "temporary": false
+    }
+   ]
+  },
+  {
+   "username": "tch-001",
+   "enabled": true,
+   "email": "yann.le-goff@ker-avel.example",
+   "emailVerified": true,
+   "firstName": "Yann",
+   "lastName": "Le Goff",
+   "credentials": [
+    {
+     "type": "password",
+     "value": "demo",
+     "temporary": false
+    }
+   ]
+  },
+  {
+   "username": "stf-01",
+   "enabled": true,
+   "email": "claire.morvan@ker-avel.example",
+   "emailVerified": true,
+   "firstName": "Claire",
+   "lastName": "Morvan",
+   "credentials": [
+    {
+     "type": "password",
+     "value": "demo",
+     "temporary": false
+    }
+   ]
+  }
+ ]
+}

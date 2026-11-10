@@ -12,6 +12,7 @@ SUITE_TITLES = {
     "access": "Access control with canaries (OWASP LLM02/LLM06)",
     "grounding": "Hallucinations and grounding",
     "robustness": "Robustness to wording",
+    "domains": "Internships, grade entry, make-ups (version 2.0)",
     "core": "Regression: the 41 scenarios of version 1.0",
 }
 

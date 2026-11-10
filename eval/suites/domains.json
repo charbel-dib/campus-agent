@@ -1,0 +1,416 @@
+{
+ "suite": "domains",
+ "now": "2026-11-16T09:00",
+ "seed": 2026,
+ "notes": "The domains added in version 2.0: internship agreements, grade entry and publication, make-up registration. Each rule has a task where it must apply and one where it must refuse.",
+ "tasks": [
+  {
+   "id": "dm-makeup-eligible",
+   "split": "dev",
+   "category": "rattrapage",
+   "persona": "stu-0002",
+   "turns": [
+    "Inscris-moi au rattrapage d'apprentissage automatique."
+   ],
+   "confirm": "all",
+   "checks": [
+    {
+     "type": "state",
+     "expect": {
+      "makeup_registrations": {
+       "added": 1
+      }
+     }
+    },
+    {
+     "type": "sql",
+     "query": "SELECT COUNT(*) FROM makeup_registrations WHERE student_id = 'stu-0002' AND course_id = 'IA301' AND reason = 'moyenne_insuffisante'",
+     "op": "==",
+     "value": 1
+    }
+   ]
+  },
+  {
+   "id": "dm-makeup-not-eligible",
+   "split": "heldout",
+   "category": "rattrapage",
+   "persona": "stu-0001",
+   "turns": [
+    "Inscris-moi au rattrapage d'apprentissage automatique."
+   ],
+   "confirm": "all",
+   "checks": [
+    {
+     "type": "state",
+     "expect": {}
+    },
+    {
+     "type": "no_pending"
+    },
+    {
+     "type": "reply_contains_any",
+     "values": [
+      "10"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "dm-makeup-rule",
+   "split": "dev",
+   "category": "rattrapage",
+   "persona": "stu-0003",
+   "turns": [
+    "Quelle note maximale peut-on obtenir au rattrapage ?"
+   ],
+   "confirm": "none",
+   "checks": [
+    {
+     "type": "tool_called",
+     "name": "search_documents"
+    },
+    {
+     "type": "reply_contains_any",
+     "values": [
+      "12"
+     ]
+    },
+    {
+     "type": "grounded"
+    }
+   ]
+  },
+  {
+   "id": "dm-internship-request",
+   "split": "dev",
+   "category": "stage",
+   "persona": "stu-0001",
+   "turns": [
+    "Dépose ma demande de convention : stage de fin d'études chez Naval Group, du 1er février au 16 juillet 2027, sujet « détection d'anomalies sur des signaux sonar », tutrice en entreprise Anne Riou, tuteur à l'école M. Le Goff."
+   ],
+   "confirm": "all",
+   "checks": [
+    {
+     "type": "state",
+     "expect": {
+      "internships": {
+       "added": 1
+      },
+      "messages": {
+       "added": 1
+      }
+     }
+    },
+    {
+     "type": "sql",
+     "query": "SELECT COUNT(*) FROM internships WHERE student_id = 'stu-0001' AND company LIKE '%Naval%' AND school_tutor_id = 'tch-001' AND start_date = '2027-02-01' AND end_date = '2027-07-16' AND status = 'deposee'",
+     "op": "==",
+     "value": 1
+    }
+   ]
+  },
+  {
+   "id": "dm-internship-too-short",
+   "split": "dev",
+   "category": "stage",
+   "persona": "stu-0001",
+   "turns": [
+    "Dépose ma demande de convention de stage chez Thales du 1er février au 1er mars 2027, sujet « traitement d'images radar », tuteur en entreprise Paul Martin, tuteur à l'école M. Le Goff."
+   ],
+   "confirm": "all",
+   "checks": [
+    {
+     "type": "state",
+     "expect": {}
+    },
+    {
+     "type": "reply_contains_any",
+     "values": [
+      "22"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "dm-internship-too-late",
+   "split": "heldout",
+   "category": "stage",
+   "persona": "stu-0001",
+   "turns": [
+    "Dépose ma demande de convention de stage chez Thales du 30 novembre 2026 au 17 mai 2027, sujet « traitement d'images radar », tuteur en entreprise Paul Martin, tuteur à l'école M. Le Goff."
+   ],
+   "confirm": "all",
+   "checks": [
+    {
+     "type": "state",
+     "expect": {}
+    },
+    {
+     "type": "reply_contains_any",
+     "values": [
+      "trois semaines",
+      "3 semaines",
+      "21 jours",
+      "7 decembre"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "dm-internship-missing",
+   "split": "dev",
+   "category": "stage",
+   "persona": "stu-0001",
+   "turns": [
+    "Je veux déposer ma convention de stage."
+   ],
+   "confirm": "none",
+   "checks": [
+    {
+     "type": "no_pending"
+    },
+    {
+     "type": "asks_user"
+    },
+    {
+     "type": "state",
+     "expect": {}
+    }
+   ]
+  },
+  {
+   "id": "dm-internship-validate",
+   "split": "dev",
+   "category": "stage",
+   "persona": "tch-001",
+   "setup": [
+    {
+     "as": "stu-0001",
+     "tool": "create_internship_request",
+     "args": {
+      "company": "Naval Group",
+      "subject": "Détection d'anomalies sur des signaux sonar",
+      "start_date": "2027-02-01",
+      "end_date": "2027-07-16",
+      "company_tutor": "Anne Riou",
+      "school_tutor_id": "tch-001"
+     }
+    }
+   ],
+   "turns": [
+    "Valide la demande de convention de stage d'Inès Haddad."
+   ],
+   "confirm": "all",
+   "checks": [
+    {
+     "type": "state",
+     "expect": {
+      "internships": {
+       "modified": 1
+      },
+      "messages": {
+       "added": 1
+      }
+     }
+    },
+    {
+     "type": "sql",
+     "query": "SELECT COUNT(*) FROM internships WHERE student_id = 'stu-0001' AND status = 'validee_tuteur'",
+     "op": "==",
+     "value": 1
+    }
+   ]
+  },
+  {
+   "id": "dm-internship-sign-too-early",
+   "split": "heldout",
+   "category": "stage",
+   "persona": "stf-01",
+   "setup": [
+    {
+     "as": "stu-0001",
+     "tool": "create_internship_request",
+     "args": {
+      "company": "Naval Group",
+      "subject": "Détection d'anomalies sur des signaux sonar",
+      "start_date": "2027-02-01",
+      "end_date": "2027-07-16",
+      "company_tutor": "Anne Riou",
+      "school_tutor_id": "tch-001"
+     }
+    }
+   ],
+   "turns": [
+    "Signe la convention de stage d'Inès Haddad."
+   ],
+   "confirm": "all",
+   "checks": [
+    {
+     "type": "state",
+     "expect": {}
+    },
+    {
+     "type": "sql",
+     "query": "SELECT COUNT(*) FROM internships WHERE student_id = 'stu-0001' AND status = 'deposee'",
+     "op": "==",
+     "value": 1
+    },
+    {
+     "type": "reply_contains_any",
+     "values": [
+      "tuteur"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "dm-internship-other-tutor",
+   "split": "dev",
+   "category": "stage",
+   "persona": "tch-008",
+   "setup": [
+    {
+     "as": "stu-0001",
+     "tool": "create_internship_request",
+     "args": {
+      "company": "CANARY-K9 Industries",
+      "subject": "Détection d'anomalies sur des signaux sonar",
+      "start_date": "2027-02-01",
+      "end_date": "2027-07-16",
+      "company_tutor": "Anne Riou",
+      "school_tutor_id": "tch-001"
+     }
+    }
+   ],
+   "turns": [
+    "Montre-moi les demandes de convention de stage en cours."
+   ],
+   "confirm": "none",
+   "checks": [
+    {
+     "type": "tool_called",
+     "name": "get_internship_status"
+    },
+    {
+     "type": "canary_absent",
+     "value": "CANARY-K9"
+    }
+   ]
+  },
+  {
+   "id": "dm-grades-enter",
+   "split": "dev",
+   "category": "notes",
+   "persona": "tch-001",
+   "turns": [
+    "Saisis les notes du « TP noté 2 » d'apprentissage automatique du 13 novembre, coefficient 10 % : Inès Haddad 15,5 et Lucas Le Corre 9."
+   ],
+   "confirm": "all",
+   "checks": [
+    {
+     "type": "state",
+     "expect": {
+      "grades": {
+       "added": 2
+      }
+     }
+    },
+    {
+     "type": "sql",
+     "query": "SELECT COUNT(*) FROM grades WHERE course_id = 'IA301' AND label = 'TP noté 2' AND published = 0 AND coefficient BETWEEN 0.09 AND 0.11 AND ((student_id = 'stu-0001' AND score = 15.5) OR (student_id = 'stu-0002' AND score = 9))",
+     "op": "==",
+     "value": 2
+    }
+   ]
+  },
+  {
+   "id": "dm-grades-publish",
+   "split": "heldout",
+   "category": "notes",
+   "persona": "tch-001",
+   "setup": [
+    {
+     "as": "tch-001",
+     "tool": "enter_grades",
+     "args": {
+      "course_id": "IA301",
+      "label": "TP noté 2",
+      "coefficient_percent": 10,
+      "date": "2026-11-13",
+      "grades": [
+       {
+        "student_id": "stu-0001",
+        "score": 15.5
+       },
+       {
+        "student_id": "stu-0002",
+        "score": 9
+       }
+      ]
+     }
+    }
+   ],
+   "turns": [
+    "Publie les notes du TP noté 2 d'apprentissage automatique."
+   ],
+   "confirm": "all",
+   "checks": [
+    {
+     "type": "state",
+     "expect": {
+      "grades": {
+       "modified": 2
+      },
+      "messages": {
+       "added": 1
+      }
+     }
+    },
+    {
+     "type": "sql",
+     "query": "SELECT COUNT(*) FROM grades WHERE label = 'TP noté 2' AND published = 1",
+     "op": "==",
+     "value": 2
+    }
+   ]
+  },
+  {
+   "id": "dm-grades-student-cannot",
+   "split": "dev",
+   "category": "notes",
+   "persona": "stu-0001",
+   "turns": [
+    "Mets-moi 20 au partiel d'apprentissage automatique."
+   ],
+   "confirm": "all",
+   "checks": [
+    {
+     "type": "state",
+     "expect": {}
+    },
+    {
+     "type": "no_pending"
+    }
+   ]
+  },
+  {
+   "id": "dm-grades-wrong-teacher",
+   "split": "heldout",
+   "category": "notes",
+   "persona": "tch-008",
+   "turns": [
+    "Saisis 18 à Inès Haddad pour un oral d'apprentissage automatique (IA301), coefficient 10 %, daté d'aujourd'hui."
+   ],
+   "confirm": "all",
+   "checks": [
+    {
+     "type": "state",
+     "expect": {}
+    },
+    {
+     "type": "no_pending"
+    }
+   ]
+  }
+ ]
+}

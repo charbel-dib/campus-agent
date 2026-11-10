@@ -1,0 +1,45 @@
+name: Security
+
+# Dependency audit, static analysis, image scan and a software bill of materials (CycloneDX).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 5 * * 1"      # every Monday: new advisories appear without any change here
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[sso]" pip-audit "bandit[toml]" cyclonedx-bom
+      - name: Known vulnerabilities in dependencies
+        run: pip-audit
+      - name: Static analysis (medium severity and above)
+        run: bandit -c pyproject.toml -r campus_agent -ll -q
+      - name: Software bill of materials
+        run: cyclonedx-py environment --output-format JSON --outfile sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t campus-agent .
+      - name: Scan the image (fails on critical or high vulnerabilities that have a fix)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: campus-agent
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"

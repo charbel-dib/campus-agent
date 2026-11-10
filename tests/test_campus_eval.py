@@ -58,7 +58,7 @@ def test_suites_are_valid_and_ids_unique():
         assert suites.validate(spec) == [], name
         assert (spec["now"], spec["seed"]) == (NOW, ALL["core"]["seed"])
         ids += [t["id"] for t in spec["tasks"]]
-    assert len(ids) == len(set(ids)) >= 150
+    assert len(ids) == len(set(ids)) >= 170
     heldout = sum(t.get("split") == "heldout" for spec in ALL.values() for t in spec["tasks"])
     assert heldout >= 40
 

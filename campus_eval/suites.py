@@ -8,7 +8,7 @@ from pathlib import Path
 from . import checks
 
 SUITES_DIR = Path(__file__).resolve().parents[1] / "eval" / "suites"
-ORDER = ["tasks", "tool_calls", "traps", "injection", "access", "grounding", "robustness", "core"]
+ORDER = ["tasks", "tool_calls", "traps", "injection", "access", "grounding", "robustness", "domains", "core"]
 
 
 def load(name: str) -> dict:
