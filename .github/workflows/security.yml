@@ -15,7 +15,7 @@ jobs:
   python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -36,7 +36,7 @@ jobs:
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build -t campus-agent .
       # Scan the container's final filesystem, flattened: what runs is what is checked. The layer scan kept
       # reporting pip 24.0 and setuptools 70.3.0 after the build had replaced or deleted them. Trivy runs from
