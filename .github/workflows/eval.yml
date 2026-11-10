@@ -5,10 +5,10 @@ name: Agent evaluation
 # five points against the committed baseline. 88 runs of Claude Haiku 5.5, under $0.10.
 on:
   pull_request:
-    paths: ["campus_agent/**", "campus_eval/**", "eval/suites/**", "data/docs/**"]
+    paths: ["campus_agent/**", "campus_eval/**", "eval/suites/**", ".github/workflows/eval.yml"]
   push:
     branches: [main]
-    paths: ["campus_agent/**", "campus_eval/**", "eval/suites/**", "data/docs/**"]
+    paths: ["campus_agent/**", "campus_eval/**", "eval/suites/**", ".github/workflows/eval.yml"]
   workflow_dispatch:
 
 permissions:

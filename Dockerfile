@@ -12,7 +12,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY campus_agent ./campus_agent
-RUN pip install --no-cache-dir .
+# Security fixes of the base image's system packages, and current pip and setuptools: the versions
+# bundled with Python carry published vulnerabilities that the image scan (security.yml) reports.
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/* \
+ && pip install --no-cache-dir --upgrade pip setuptools wheel \
+ && pip install --no-cache-dir .
 
 # Run as an unprivileged user; the school database and certificates live in /data.
 RUN useradd --create-home --uid 10001 campus && mkdir -p /data && chown campus /data
