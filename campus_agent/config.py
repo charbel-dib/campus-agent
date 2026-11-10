@@ -79,6 +79,31 @@ class Settings:
     visitor_message_limit: int = 30
     visitor_budget_usd: float = 0.15
     frame_ancestors: str = "'none'"
+    # Operations
+    otlp_endpoint: str = ""                 # OTLP/HTTP collector, e.g. http://localhost:6006 (Phoenix)
+    retention_days: int = 30                # conversations, traces and feedback
+    audit_retention_days: int = 365
+    disabled_tools: tuple = ()
+    # Optional agent features (off by default: each one changes what the evaluation measures)
+    escalation_model: str = ""              # e.g. claude-sonnet-5-5: takes over long or failing turns
+    escalate_after_steps: int = 6
+    cache_ttl: str = ""                     # "1h" for the long prompt cache
+    clarify_choices: bool = False           # ask_user tool: clickable clarifying questions
+    skills: bool = False                    # procedures loaded on demand (campus_agent/skills)
+    # Integrations (all optional; see docs/integrations.md)
+    public_url: str = ""
+    oidc_issuer: str = ""
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
+    oidc_audience: str = ""
+    smtp_url: str = ""                      # smtp://localhost:1025 (Mailpit)
+    mail_from: str = "assistant@ker-avel.example"
+    caldav_url: str = ""                    # http://user:password@localhost:5232/user/calendar/
+    glpi_url: str = ""
+    glpi_app_token: str = ""
+    glpi_user_token: str = ""
+    moodle_url: str = ""
+    moodle_token: str = ""
     extra: dict = field(default_factory=dict)
 
 
@@ -111,4 +136,26 @@ def load_settings(env_file: Path | None = None) -> Settings:
         visitor_message_limit=_env_int("CAMPUS_VISITOR_MESSAGE_LIMIT", 30),
         visitor_budget_usd=_env_float("CAMPUS_VISITOR_BUDGET_USD", 0.15),
         frame_ancestors=_env("CAMPUS_FRAME_ANCESTORS", "'none'"),
+        otlp_endpoint=_env("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
+        retention_days=_env_int("CAMPUS_RETENTION_DAYS", 30),
+        audit_retention_days=_env_int("CAMPUS_AUDIT_RETENTION_DAYS", 365),
+        disabled_tools=tuple(t.strip() for t in _env("CAMPUS_DISABLED_TOOLS", "").split(",") if t.strip()),
+        escalation_model=_env("CAMPUS_ESCALATION_MODEL", ""),
+        escalate_after_steps=_env_int("CAMPUS_ESCALATE_AFTER_STEPS", 6),
+        cache_ttl=_env("CAMPUS_CACHE_TTL", ""),
+        clarify_choices=_env_bool("CAMPUS_CLARIFY_CHOICES", False),
+        skills=_env_bool("CAMPUS_SKILLS", False),
+        public_url=_env("CAMPUS_PUBLIC_URL", "").rstrip("/"),
+        oidc_issuer=_env("CAMPUS_OIDC_ISSUER", "").rstrip("/"),
+        oidc_client_id=_env("CAMPUS_OIDC_CLIENT_ID", ""),
+        oidc_client_secret=_env("CAMPUS_OIDC_CLIENT_SECRET", ""),
+        oidc_audience=_env("CAMPUS_OIDC_AUDIENCE", ""),
+        smtp_url=_env("CAMPUS_SMTP_URL", ""),
+        mail_from=_env("CAMPUS_MAIL_FROM", "assistant@ker-avel.example"),
+        caldav_url=_env("CAMPUS_CALDAV_URL", ""),
+        glpi_url=_env("CAMPUS_GLPI_URL", "").rstrip("/"),
+        glpi_app_token=_env("CAMPUS_GLPI_APP_TOKEN", ""),
+        glpi_user_token=_env("CAMPUS_GLPI_USER_TOKEN", ""),
+        moodle_url=_env("CAMPUS_MOODLE_URL", "").rstrip("/"),
+        moodle_token=_env("CAMPUS_MOODLE_TOKEN", ""),
     )

@@ -195,6 +195,68 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     cache_write_tokens INTEGER NOT NULL DEFAULT 0,
     cost_usd      REAL NOT NULL DEFAULT 0
 );
+
+-- Telemetry: one row per span, named and attributed after the OpenTelemetry GenAI conventions.
+CREATE TABLE IF NOT EXISTS spans (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    trace_id    TEXT NOT NULL,
+    span_id     TEXT NOT NULL,
+    parent_id   TEXT,
+    name        TEXT NOT NULL,
+    session_id  TEXT,
+    actor_id    TEXT,
+    start_ns    INTEGER NOT NULL,
+    duration_ms REAL NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'ok',
+    attributes_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_spans_trace ON spans(trace_id);
+
+CREATE TABLE IF NOT EXISTS feedback (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    actor_id   TEXT NOT NULL,
+    trace_id   TEXT NOT NULL DEFAULT '',
+    rating     INTEGER NOT NULL CHECK (rating IN (-1, 1)),
+    reason     TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS internships (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id    TEXT NOT NULL REFERENCES people(id),
+    company       TEXT NOT NULL,
+    subject       TEXT NOT NULL,
+    start_date    TEXT NOT NULL,
+    end_date      TEXT NOT NULL,
+    company_tutor TEXT NOT NULL,
+    school_tutor_id TEXT NOT NULL REFERENCES people(id),
+    status        TEXT NOT NULL CHECK (status IN ('deposee', 'validee_tuteur', 'signee', 'refusee')),
+    comment       TEXT NOT NULL DEFAULT '',
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS makeup_registrations (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id TEXT NOT NULL REFERENCES people(id),
+    course_id  TEXT NOT NULL REFERENCES courses(id),
+    reason     TEXT NOT NULL CHECK (reason IN ('absence_justifiee', 'moyenne_insuffisante')),
+    created_at TEXT NOT NULL,
+    UNIQUE (student_id, course_id)
+);
+
+-- Deliveries to outside systems (mail, calendar, helpdesk): written with the change, sent afterwards.
+CREATE TABLE IF NOT EXISTS outbox (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind       TEXT NOT NULL,              -- mail, calendar, ticket
+    ref        TEXT NOT NULL,              -- messages.id, events.id or tickets.id
+    status     TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL,
+    UNIQUE (kind, ref)
+);
 """
 
 

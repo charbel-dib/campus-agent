@@ -26,7 +26,7 @@ Une absence à un examen n'est excusée que sur présentation d'un justificatif 
 
 ## 5. Rattrapages
 
-Une session de rattrapage est organisée deux semaines après la publication des résultats. Elle est ouverte aux étudiants dont la moyenne est inférieure à 10/20 et à ceux dont l'absence à l'examen a été excusée. La note de rattrapage remplace la note de l'examen final, dans la limite de 12/20.
+Une session de rattrapage est organisée deux semaines après la publication des résultats. Elle est ouverte aux étudiants dont la moyenne est inférieure à 10/20 et à ceux dont l'absence à l'examen a été excusée. La note de rattrapage remplace la note de l'examen final, dans la limite de 12/20. L'inscription au rattrapage se fait auprès de l'assistant ou de la scolarité.
 
 ## 6. Modification de l'emploi du temps
 

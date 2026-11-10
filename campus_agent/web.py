@@ -25,13 +25,14 @@ from starlette.applications import Starlette
 from starlette.datastructures import MutableHeaders
 from starlette.middleware import Middleware
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse, Response
+from starlette.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import db, tools
+from . import __version__, db, ops, privacy, telemetry, tools
+from .agent import prompt_version
 from .cli import PERSONAS
-from .clock import monday_of, parse_date
+from .clock import fmt_dt, monday_of, parse_date
 from .db import get_meta, set_meta
 from .domain import DomainError, NotFound, academics, audit, load_actor
 from .llm import LLMError
@@ -42,6 +43,11 @@ log = logging.getLogger("campus_agent.web")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 TOKEN_TTL_SECONDS = 8 * 3600
 MAX_BODY_BYTES = 16_000
+
+
+STARTED = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+# Service-level objectives shown on the operations page next to the measured values (docs/operations.md).
+SLO = {"latency_p95_s": 8.0, "mean_cost_cents": 0.2, "tool_error_rate": 0.01, "availability": 0.995}
 
 
 class ApiError(Exception):
@@ -189,6 +195,7 @@ def create_app(rt: Runtime | None = None, llm_factory=None) -> Starlette:
         def check():
             return {"ok": True, "model": settings.model, "agent_configured": bool(settings.anthropic_api_key),
                     "now": rt.clock.now().isoformat(timespec="minutes"), "demo": demo,
+                    "sso": bool(settings.oidc_issuer), "version": __version__,
                     "spent_today_usd": round(rt.spent_today(), 4), "daily_budget_usd": settings.daily_budget_usd}
         return JSONResponse(await anyio.to_thread.run_sync(check))
 
@@ -272,6 +279,10 @@ def create_app(rt: Runtime | None = None, llm_factory=None) -> Starlette:
                 turn = rt.agent(conn, llm=make_llm(), sandbox=sandbox).decide(sid, pid, aid, data["confirm"])
             except KeyError as exc:
                 raise ApiError(404, "conversation inconnue") from exc
+            if not demo and rt.providers is not None and rt.providers.any():
+                from .integrations import outbox
+
+                outbox.deliver(conn, rt.providers, rt.clock.now())      # mail, calendar, helpdesk; failures are retried
             return {**turn.as_dict(), "quota": quota(conn)}
         return JSONResponse(await run_with(sandbox, run))
 
@@ -323,8 +334,195 @@ def create_app(rt: Runtime | None = None, llm_factory=None) -> Starlette:
             return {"entries": audit.recent(ctx, 50)}
         return JSONResponse(await run_with(sandbox, run))
 
+    # ---------------------------------------------------------------- streaming (server-sent events)
+
+    async def stream_message(request: Request) -> Response:
+        """Same as post_message, but each tool step is sent as it happens, then the whole turn."""
+        pid, sandbox = visitor(request)
+        limiter.check(f"{pid}:{sandbox}:{request.client.host if request.client else '-'}")
+        text = str((await body(request)).get("text", "")).strip()
+        if not text:
+            raise ApiError(400, "message vide")
+        sid = request.path_params["sid"]
+        send, receive = anyio.create_memory_object_stream(100)
+
+        def work():
+            conn = rt.connect(sandbox)
+            try:
+                check_quota(conn)
+                agent = rt.agent(conn, llm=make_llm(), sandbox=sandbox)
+                agent.on_event = lambda ev: anyio.from_thread.run_sync(send.send_nowait, ("step", ev))
+                turn = agent.run(sid, pid, text).as_dict()
+                if demo:
+                    set_meta(conn, "visitor_messages", str(int(get_meta(conn, "visitor_messages", "0") or 0) + 1))
+                    conn.commit()
+                return {**turn, "quota": quota(conn)}
+            finally:
+                conn.close()
+
+        async def run():
+            try:
+                turn = await anyio.to_thread.run_sync(work)
+                await send.send(("turn", turn))
+            except ApiError as exc:
+                await send.send(("error", {"error": exc.message}))
+            except KeyError:
+                await send.send(("error", {"error": "conversation inconnue ou session expirée"}))
+            except Exception:  # noqa: BLE001
+                log.exception("stream failed")
+                await send.send(("error", {"error": "erreur interne"}))
+            finally:
+                await send.aclose()
+
+        async def events():
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(run)
+                async for name, data in receive:
+                    yield f"event: {name}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+        return StreamingResponse(events(), media_type="text/event-stream",
+                                 headers={"cache-control": "no-cache", "x-accel-buffering": "no"})
+
+    # ---------------------------------------------------------------- quality loop and operations
+
+    async def feedback(request: Request) -> Response:
+        pid, sandbox = visitor(request)
+        data = await body(request)
+        if data.get("rating") not in (1, -1):
+            raise ApiError(400, "« rating » doit valoir 1 ou -1")
+        sid = request.path_params["sid"]
+
+        def run(conn):
+            if conn.execute("SELECT 1 FROM agent_sessions WHERE id = ? AND actor_id = ?", (sid, pid)).fetchone() is None:
+                raise ApiError(404, "conversation inconnue")
+            conn.execute("INSERT INTO feedback(session_id, actor_id, trace_id, rating, reason, created_at) VALUES (?,?,?,?,?,?)",
+                         (sid, pid, str(data.get("trace_id", ""))[:40], data["rating"], str(data.get("reason", ""))[:500],
+                          fmt_dt(rt.clock.now())))
+            conn.commit()
+            return {"ok": True}
+        return JSONResponse(await run_with(sandbox, run))
+
+    async def handoff(request: Request) -> Response:
+        """Hand the conversation to a human: a ticket for the office with what the user asked."""
+        pid, sandbox = visitor(request)
+        sid = request.path_params["sid"]
+
+        def run(conn):
+            agent = rt.agent(conn, llm=_NoLLM(settings.model), sandbox=sandbox)
+            try:
+                asked = [m["text"] for m in agent.history(sid, pid) if m["role"] == "user"][-5:]
+            except KeyError as exc:
+                raise ApiError(404, "conversation inconnue") from exc
+            if not asked:
+                raise ApiError(400, "la conversation est vide")
+            ctx = rt.context(conn, pid, channel="api", session_id=sid, sandbox=sandbox)
+            text = "Demande de relais vers la scolarité. Derniers messages de l'utilisateur :\n- " + "\n- ".join(
+                a[:400] for a in asked)
+            res = tools.execute(ctx, "create_ticket", {"category": "assistant", "subject": "Relais humain demandé",
+                                                       "body": text}, confirm_writes=False)
+            if res.is_error:
+                raise ApiError(400, res.content.get("error", "impossible d'ouvrir le ticket"))
+            return {"ticket_id": res.content["ticket_id"], "message": "La scolarité est prévenue et reprend ta demande."}
+        return JSONResponse(await run_with(sandbox, run))
+
+    async def trace_view(request: Request) -> Response:
+        pid, sandbox = visitor(request)
+        tid = request.path_params["tid"]
+
+        def run(conn):
+            staff = load_actor(conn, pid).is_staff
+            return {"spans": telemetry.trace(conn, tid, None if staff else pid)}
+        return JSONResponse(await run_with(sandbox, run))
+
+    async def admin_metrics(request: Request) -> Response:
+        pid, sandbox = visitor(request)
+
+        def run(conn):
+            if not load_actor(conn, pid).is_staff:
+                raise ApiError(403, "réservé à la scolarité")
+            return {**ops.metrics(conn), "slo": SLO, "prompt_version": prompt_version(), "version": __version__}
+        return JSONResponse(await run_with(sandbox, run))
+
+    async def status(_request: Request) -> Response:
+        return JSONResponse({"version": __version__, "prompt_version": prompt_version(), "model": settings.model,
+                             "started_at": STARTED, "agent_configured": bool(settings.anthropic_api_key),
+                             "features": {"sso": bool(settings.oidc_issuer), "clarify": settings.clarify_choices,
+                                          "skills": settings.skills, "escalation_model": settings.escalation_model,
+                                          "otlp": bool(settings.otlp_endpoint)}})
+
+    async def eval_summary(_request: Request) -> Response:
+        path = Path(__file__).resolve().parent / "static" / "eval-latest.json"
+        return JSONResponse(json.loads(path.read_text(encoding="utf-8")) if path.exists() else {})
+
+    # ---------------------------------------------------------------- personal data
+
+    async def my_data(request: Request) -> Response:
+        pid, sandbox = visitor(request)
+        if request.method == "DELETE":
+            return JSONResponse({"erased": await run_with(sandbox, lambda c: privacy.erase_person(c, pid))})
+        data = await run_with(sandbox, lambda c: privacy.export_person(c, pid))
+        return JSONResponse(data, headers={"content-disposition": "attachment; filename=mes-donnees.json"})
+
+    # ---------------------------------------------------------------- calendar feeds (iCalendar)
+
+    async def ical_link(request: Request) -> Response:
+        pid, sandbox = visitor(request)
+        token = signer.issue(pid, sandbox, 180 * 24 * 3600)
+        return JSONResponse({"url": f"{settings.public_url or str(request.base_url).rstrip('/')}/ical/{token}.ics"})
+
+    async def ical_feed(request: Request) -> Response:
+        from .integrations import ical
+
+        pid, sandbox = signer.verify(request.path_params["token"])
+        text = await run_with(sandbox, lambda c: ical.feed(c, person_id=pid))
+        return Response(text, media_type="text/calendar; charset=utf-8")
+
+    # ---------------------------------------------------------------- single sign-on (OpenID Connect)
+
+    verifier = None
+    if settings.oidc_issuer:
+        from .integrations.oidc import AuthError, Verifier, authorization_url, exchange_code, person_for, pkce
+
+        verifier = Verifier(settings.oidc_issuer, settings.oidc_client_id)
+        redirect_uri = f"{settings.public_url}/api/oidc/callback"
+
+        async def oidc_login(_request: Request) -> Response:
+            code_verifier, challenge = pkce()
+            state = signer.issue(code_verifier, "oidc", 600)       # the PKCE verifier travels signed in the state
+            meta = await anyio.to_thread.run_sync(verifier.metadata)
+            return RedirectResponse(authorization_url(meta, settings.oidc_client_id, redirect_uri, state, challenge))
+
+        async def oidc_callback(request: Request) -> Response:
+            code_verifier, marker = signer.verify(request.query_params.get("state", ""))
+            if marker != "oidc" or not request.query_params.get("code"):
+                raise ApiError(400, "réponse de connexion invalide")
+
+            def work():
+                tokens = exchange_code(verifier.metadata(), settings.oidc_client_id, settings.oidc_client_secret,
+                                       redirect_uri, request.query_params["code"], code_verifier)
+                claims = verifier.claims(tokens.get("id_token", ""))
+                conn = rt.connect()
+                try:
+                    return person_for(conn, claims)
+                finally:
+                    conn.close()
+            try:
+                pid = await anyio.to_thread.run_sync(work)
+            except AuthError as exc:
+                raise ApiError(403, f"connexion refusée : {exc}") from exc
+            return RedirectResponse(f"/#token={signer.issue(pid)}")
+
     routes = [
         Route("/", endpoint(index)),
+        Route("/api/status", endpoint(status)),
+        Route("/api/eval-summary", endpoint(eval_summary)),
+        Route("/api/sessions/{sid}/stream", endpoint(stream_message), methods=["POST"]),
+        Route("/api/sessions/{sid}/feedback", endpoint(feedback), methods=["POST"]),
+        Route("/api/sessions/{sid}/handoff", endpoint(handoff), methods=["POST"]),
+        Route("/api/traces/{tid}", endpoint(trace_view)),
+        Route("/api/admin/metrics", endpoint(admin_metrics)),
+        Route("/api/me/data", endpoint(my_data), methods=["GET", "DELETE"]),
+        Route("/api/ical-link", endpoint(ical_link)),
+        Route("/ical/{token}.ics", endpoint(ical_feed)),
         Route("/api/health", endpoint(health)),
         Route("/api/personas", endpoint(personas)),
         Route("/api/login", endpoint(login), methods=["POST"]),
@@ -339,6 +537,13 @@ def create_app(rt: Runtime | None = None, llm_factory=None) -> Starlette:
         Route("/api/audit", endpoint(audit_log)),
         Mount("/static", StaticFiles(directory=STATIC_DIR), name="static"),
     ]
+    if verifier is not None:
+        from . import mcp_http
+
+        routes += [Route("/api/oidc/login", endpoint(oidc_login)), Route("/api/oidc/callback", endpoint(oidc_callback))]
+        if not demo:
+            routes += mcp_http.routes(rt, Verifier(settings.oidc_issuer, settings.oidc_audience or f"{settings.public_url}/mcp"),
+                                      settings.oidc_audience or f"{settings.public_url}/mcp")
     return Starlette(routes=routes, middleware=[Middleware(SecurityHeaders, frame_ancestors=settings.frame_ancestors)])
 
 

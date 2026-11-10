@@ -179,3 +179,17 @@ button:disabled { opacity: 0.5; cursor: progress; }
   .slip:not(.done) { animation: arrive 260ms ease-out; }
   @keyframes arrive { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 }
+
+/* Feedback, clarifying choices, behind the scenes, operations */
+.feedback { margin-top: 0.4rem; font-size: 0.85rem; color: var(--ink-2); }
+.feedback button { background: none; border: 0; cursor: pointer; font-size: 1rem; padding: 0.1rem 0.3rem; opacity: 0.6; }
+.feedback button:hover, .feedback button:focus-visible { opacity: 1; }
+.choices { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.choices button { background: var(--paper); border: 1px solid var(--sea); color: var(--sea); border-radius: 999px;
+  padding: 0.3rem 0.8rem; cursor: pointer; font: inherit; }
+#trace li.child { margin-left: 1rem; }
+dl.admin { display: grid; grid-template-columns: 1fr; gap: 0.1rem 0; font-size: 0.875rem; margin: 0.5rem 0; }
+dl.admin dt { color: var(--ink-2); margin-top: 0.5rem; }
+dl.admin dd { margin: 0; }
+.ical-url { width: 100%; margin-top: 0.3rem; font: inherit; font-size: 0.8rem; }
+.chat .link, .side .link { color: var(--sea); cursor: pointer; font: inherit; font-size: inherit; }

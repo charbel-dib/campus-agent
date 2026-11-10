@@ -65,8 +65,37 @@ def main(argv: list[str] | None = None) -> None:
     ask.add_argument("--no", action="store_true", help="refuser automatiquement les actions proposées")
     ask.add_argument("--model")
     ask.add_argument("-v", "--verbose", action="store_true")
+    sub.add_parser("purge", help="apply the retention periods (conversations, traces, audit trail)")
+    for name in ("export", "erase"):
+        sp = sub.add_parser(name, help=f"{name} the assistant's data about one person (GDPR)")
+        sp.add_argument("person_id")
+    sub.add_parser("sync", help="deliver pending mail, calendar and helpdesk items to the configured systems")
+    ics = sub.add_parser("import-ics", help="create a group's classes from a timetable export (.ics)")
+    ics.add_argument("file")
+    ics.add_argument("--organizer", required=True)
+    ics.add_argument("--group")
     args = parser.parse_args(argv)
 
+    if args.cmd in ("purge", "export", "erase", "sync", "import-ics"):
+        from . import privacy
+        from .integrations import ical, outbox
+
+        rt = boot()
+        conn = rt.connect()
+        s = rt.settings
+        if args.cmd == "purge":
+            out = privacy.purge(conn, rt.clock.now(), s.retention_days, s.audit_retention_days)
+        elif args.cmd == "export":
+            out = privacy.export_person(conn, args.person_id)
+        elif args.cmd == "erase":
+            out = privacy.erase_person(conn, args.person_id)
+        elif args.cmd == "sync":
+            out = outbox.deliver(conn, rt.providers, rt.clock.now())
+        else:
+            with open(args.file, encoding="utf-8") as f:
+                out = ical.import_events(conn, f.read(), args.organizer, args.group, rt.clock.now())
+        print(json.dumps(out, ensure_ascii=False, indent=1))
+        return
     if args.cmd == "personas":
         for pid, label in PERSONAS:
             print(f"{pid:9} {label}")

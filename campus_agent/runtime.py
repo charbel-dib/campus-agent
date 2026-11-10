@@ -100,6 +100,7 @@ class Runtime:
     db_path: Path
     ledger: Ledger | None = None
     sandboxes: Sandboxes | None = None
+    providers: object = None
 
     def _dir(self, sandbox: str | None) -> Path:
         if self.sandboxes is None:
@@ -129,7 +130,10 @@ class Runtime:
         return Agent(conn, self.clock, llm or self.llm(), max_steps=s.max_steps, max_tokens=s.max_tokens,
                      session_budget_usd=s.session_budget_usd, daily_budget_usd=s.daily_budget_usd,
                      channel=channel, runtime_dir=self._dir(sandbox),
-                     pending_ttl_minutes=s.pending_action_ttl_minutes, ledger=self.ledger)
+                     pending_ttl_minutes=s.pending_action_ttl_minutes, ledger=self.ledger,
+                     escalation_llm=self.llm(s.escalation_model) if s.escalation_model else None,
+                     escalate_after_steps=s.escalate_after_steps, cache_ttl=s.cache_ttl,
+                     otlp_endpoint=s.otlp_endpoint)
 
     def spent_today(self, conn=None) -> float:
         if self.ledger is not None:
@@ -149,13 +153,19 @@ def boot(settings: Settings | None = None, *, reset: bool = False) -> Runtime:
     clock = Clock(settings.now_override)
     settings.runtime_dir.mkdir(parents=True, exist_ok=True)
     tools.set_document_index(DocumentIndex(settings.docs_dir, settings.docs_retriever, settings.emb_model))
+    from .integrations.providers import from_settings
+
+    providers = from_settings(settings)
+    tools.set_providers(providers)
+    tools.configure({"clarify": settings.clarify_choices, "skills": settings.skills,
+                     "moodle": providers.assignments is not None}, set(settings.disabled_tools))
     if settings.sandbox:
         # The template is regenerated at each start, so the semester always sits around today.
         template = settings.runtime_dir / "template.db"
         create_database(template, clock.now(), settings.seed)
         return Runtime(settings, clock, template, ledger=Ledger(settings.runtime_dir / "ledger.db"),
                        sandboxes=Sandboxes(settings.runtime_dir / "sandboxes", template, settings.sandbox_ttl_hours,
-                                           settings.sandbox_max))
+                                           settings.sandbox_max), providers=providers)
     if reset or not settings.db_path.exists():
         info = create_database(settings.db_path, clock.now(), settings.seed)
         log.info("school database created: %s", info)
@@ -163,4 +173,4 @@ def boot(settings: Settings | None = None, *, reset: bool = False) -> Runtime:
         conn = db.connect(settings.db_path)
         db.init_schema(conn)          # idempotent: adds tables introduced since the file was created
         conn.close()
-    return Runtime(settings, clock, settings.db_path)
+    return Runtime(settings, clock, settings.db_path, providers=providers)

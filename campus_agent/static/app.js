@@ -40,7 +40,11 @@ const TOOL_LABELS = { search_people: "Recherche d'une personne", search_courses:
   list_tickets: "Tickets", generate_certificate: "Attestation", create_event: "Création d'événement",
   update_event: "Modification d'événement", cancel_event: "Annulation d'événement",
   justify_absence: "Justification d'absence", review_absence: "Examen d'une justification",
-  send_announcement: "Envoi de message", create_ticket: "Ticket de support" };
+  send_announcement: "Envoi de message", create_ticket: "Ticket de support",
+  create_internship_request: "Demande de convention de stage", get_internship_status: "Conventions de stage",
+  review_internship: "Examen d'une convention", enter_grades: "Saisie de notes", publish_grades: "Publication de notes",
+  register_makeup: "Inscription au rattrapage", get_makeups: "Rattrapages", get_assignments: "Devoirs (Moodle)",
+  ask_user: "Question à choix", load_skill: "Procédure" };
 const DAY_START = 8, DAY_END = 19, PX_PER_HOUR = 60;
 
 const state = { token: null, actor: null, session: null, weekStart: null, today: null, busy: false, cost: 0 };
@@ -111,6 +115,7 @@ async function showLanding() {
       li.append(b); list.append(li);
     }
     const h = await api("/api/health");
+    $("sso").hidden = !h.sso;
     $("health").textContent = h.agent_configured
       ? `Modèle ${h.model}. Budget de la démonstration aujourd'hui : ${h.spent_today_usd.toFixed(2)} $ dépensés sur ${h.daily_budget_usd.toFixed(2)} $.`
       : "La clé de l'API Claude n'est pas configurée : l'agenda fonctionne, mais l'assistant ne répondra pas.";
@@ -153,6 +158,7 @@ async function startWorkspace(fresh) {
   showQuota(me.quota);
   $("landing").hidden = true; $("workspace").hidden = false; $("who").hidden = false;
   $("who-name").textContent = `${state.actor.name}`;
+  $("tab-admin").hidden = state.actor.role !== "staff";
   $("thread").textContent = "";
   state.session = fresh ? null : load("session");
   if (state.session) {
@@ -252,9 +258,43 @@ function closeSlip(node, ok, text) {
   buttons.append(p);
 }
 
+function addChoices(container, choices) {
+  const box = document.createElement("div");
+  box.className = "choices";
+  for (const c of choices) {
+    const b = document.createElement("button");
+    b.textContent = c;
+    b.addEventListener("click", () => { box.remove(); send(c); });
+    box.append(b);
+  }
+  container.append(box);
+}
+
+function addFeedback(container, traceId) {
+  const box = document.createElement("div");
+  box.className = "feedback";
+  const rate = async (rating) => {
+    let reason = "";
+    if (rating < 0) reason = window.prompt("Qu'est-ce qui n'allait pas ? (facultatif)") || "";
+    try {
+      await api(`/api/sessions/${state.session}/feedback`, { method: "POST", body: JSON.stringify({ rating, reason, trace_id: traceId }) });
+      box.textContent = "Merci pour ton retour.";
+    } catch (e) { box.textContent = e.message; }
+  };
+  for (const [label, title, rating] of [["👍", "Réponse utile", 1], ["👎", "Réponse à améliorer", -1]]) {
+    const b = document.createElement("button");
+    b.textContent = label; b.title = title; b.setAttribute("aria-label", title);
+    b.addEventListener("click", () => rate(rating));
+    box.append(b);
+  }
+  container.append(box);
+}
+
 function showTurn(turn) {
   const reply = addMessage("assistant", turn.reply || "…");
   addTrace(reply, turn.trace || []);
+  if (turn.choices) addChoices(reply, turn.choices);
+  if (turn.trace_id) { addFeedback(reply, turn.trace_id); state.trace = turn.trace_id; loadTrace(); }
   for (const a of turn.pending_actions || []) addSlip(a);
   state.cost += turn.usage ? turn.usage.cost_usd : 0;
   $("cost").textContent = `Coût de la conversation : ${(state.cost * 100).toFixed(3)} centime(s) de dollar` +
@@ -284,12 +324,113 @@ async function send(text) {
   wait.classList.add("thinking");
   setBusy(true);
   try {
-    const turn = await api(`/api/sessions/${state.session}/messages`, { method: "POST", body: JSON.stringify({ text }) });
+    const turn = await streamTurn(text, (step) => {
+      if (step.type === "tool") wait.textContent = `${TOOL_LABELS[step.name] || step.name}…`;
+    });
     wait.remove();
     showTurn(turn);
     refreshSide();
   } catch (e) { wait.textContent = e.message; wait.classList.remove("thinking"); }
   finally { setBusy(false); }
+}
+
+/* One turn over server-sent events: each tool step as it happens, then the whole turn. */
+async function streamTurn(text, onStep) {
+  const res = await fetch(`/api/sessions/${state.session}/stream`, { method: "POST", body: JSON.stringify({ text }),
+    headers: { "content-type": "application/json", authorization: `Bearer ${state.token}` } });
+  if (!res.ok || !res.body) {
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) signOut(data.error);
+    throw new Error(data.error || `Erreur ${res.status}`);
+  }
+  const reader = res.body.getReader(), decoder = new TextDecoder();
+  let buffer = "", turn = null;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let cut;
+    while ((cut = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, cut); buffer = buffer.slice(cut + 2);
+      const name = (block.match(/^event: (.*)$/m) || [])[1];
+      const data = JSON.parse((block.match(/^data: (.*)$/m) || [])[1] || "{}");
+      if (name === "step") onStep(data);
+      else if (name === "turn") turn = data;
+      else if (name === "error") throw new Error(data.error);
+    }
+  }
+  if (!turn) throw new Error("La réponse a été interrompue. Réessaie.");
+  return turn;
+}
+
+async function handoff() {
+  try {
+    const r = await api(`/api/sessions/${state.session}/handoff`, { method: "POST" });
+    addMessage("note", `${r.message} (ticket n° ${r.ticket_id})`);
+  } catch (e) { addMessage("note", e.message); }
+}
+
+async function loadTrace() {
+  if (!state.trace) return;
+  let data;
+  try { data = await api(`/api/traces/${state.trace}`); } catch (_) { return; }
+  const ul = $("trace");
+  ul.textContent = "";
+  for (const sp of data.spans) {
+    const li = document.createElement("li");
+    if (sp.parent_id) li.className = "child";
+    const a = sp.attributes;
+    const bits = [`${sp.duration_ms} ms`];
+    if (a["gen_ai.usage.input_tokens"] !== undefined) bits.push(`${a["gen_ai.usage.input_tokens"]} → ${a["gen_ai.usage.output_tokens"]} jetons`);
+    if (a["campus.cost_usd"] !== undefined) bits.push(`${(a["campus.cost_usd"] * 100).toFixed(3)} ¢`);
+    if (a["campus.tool.outcome"]) bits.push(a["campus.tool.outcome"]);
+    li.innerHTML = "<code></code><div class='meta'></div>";
+    li.querySelector("code").textContent = sp.name;
+    li.querySelector(".meta").textContent = bits.join(", ");
+    ul.append(li);
+  }
+}
+
+async function loadAdmin() {
+  if (!state.actor || state.actor.role !== "staff") return;
+  let m;
+  try { m = await api("/api/admin/metrics"); } catch (_) { return; }
+  const rows = [
+    ["Tours de conversation", m.turns.count],
+    ["Latence p50 / p95", `${m.turns.latency_p50_s ?? "—"} s / ${m.turns.latency_p95_s ?? "—"} s (objectif p95 : ${m.slo.latency_p95_s} s)`],
+    ["Coût moyen par tour", `${m.turns.mean_cost_cents ?? "—"} ¢ (objectif : ${m.slo.mean_cost_cents} ¢)`],
+    ["Actions confirmées", m.actions.confirmation_rate === null ? "—" : `${Math.round(100 * m.actions.confirmation_rate)} %`],
+    ["Appels d'outils", `${m.tool_calls.total}, dont ${m.tool_calls.denied} refus de droits, ${m.tool_calls.conflict} conflits, ${m.tool_calls.error} erreurs`],
+    ["Retours", `${m.feedback.up} 👍, ${m.feedback.down} 👎`],
+    ["Outils les plus utilisés", m.tools.slice(0, 5).map((t) => `${TOOL_LABELS[t.tool] || t.tool} (${t.calls})`).join(", ") || "—"],
+    ["Demandes non satisfaites", m.unmet.map((u) => u.subject).join(" ; ") || "aucune"],
+    ["Retours négatifs récents", m.feedback.last_down.map((f) => f.reason || "(sans motif)").join(" ; ") || "aucun"],
+    ["Version", `${m.version}, consignes ${m.prompt_version}`],
+  ];
+  const dl = $("admin");
+  dl.textContent = "";
+  for (const [k, v] of rows) {
+    const dt = document.createElement("dt"), dd = document.createElement("dd");
+    dt.textContent = k; dd.textContent = v; dl.append(dt, dd);
+  }
+}
+
+async function exportData() {
+  const res = await fetch("/api/me/data", { headers: { authorization: `Bearer ${state.token}` } });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(await res.blob()); a.download = "mes-donnees.json"; a.click();
+}
+
+async function eraseData() {
+  if (!window.confirm("Effacer tes conversations, tes retours et tes traces ? Cette action est définitive.")) return;
+  await api("/api/me/data", { method: "DELETE" });
+  store("session", null);
+  await startWorkspace(true);
+}
+
+async function icalLink() {
+  const { url } = await api("/api/ical-link");
+  $("ical-url").hidden = false; $("ical-url").value = url; $("ical-url").select();
 }
 
 async function decide(actionId, confirm, node) {
@@ -320,7 +461,7 @@ async function download(url) {
 
 /* ---------------------------------------------------------------- side panel */
 
-function refreshSide() { loadWeek(); loadInbox(); loadAudit(); }
+function refreshSide() { loadWeek(); loadInbox(); loadAudit(); loadAdmin(); }
 
 function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function parseLocal(s) { const [d, t] = s.split("T"); const [y, m, dd] = d.split("-").map(Number); const [h, mi] = (t || "0:0").split(":").map(Number); return new Date(y, m - 1, dd, h, mi); }
@@ -445,8 +586,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("next-week").addEventListener("click", () => shiftWeek(1));
   document.querySelectorAll(".tabs button").forEach((tab) => tab.addEventListener("click", () => {
     document.querySelectorAll(".tabs button").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
-    for (const name of ["week", "inbox", "audit"]) $(`panel-${name}`).hidden = name !== tab.dataset.tab;
+    document.querySelectorAll(".side .panel").forEach((pn) => { pn.hidden = pn.id !== `panel-${tab.dataset.tab}`; });
   }));
+  $("handoff").addEventListener("click", handoff);
+  $("export-data").addEventListener("click", exportData);
+  $("erase-data").addEventListener("click", eraseData);
+  $("ical-link").addEventListener("click", icalLink);
+  const fromSso = location.hash.match(/^#token=(.+)$/);       // back from the school's sign-in page
+  if (fromSso) { store("token", fromSso[1]); history.replaceState(null, "", "/"); }
   state.token = load("token");
   if (state.token) {
     try { await startWorkspace(false); return; } catch (_) { state.token = null; }

@@ -16,6 +16,8 @@ WATCHED = {
     "events": "id",
     "absences": "id",
     "grades": "id",
+    "internships": "id",
+    "makeup_registrations": "id",
     "messages": "id",
     "tickets": "id",
     "certificates": "id",

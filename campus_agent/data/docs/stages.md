@@ -14,6 +14,8 @@ Aucun stage ne peut commencer sans convention signée par l'étudiant, l'entrepr
 
 La demande précise l'entreprise, le lieu, les dates, le sujet, le tuteur en entreprise et le tuteur à l'école.
 
+La demande peut être déposée auprès de l'assistant. Elle est d'abord validée par le tuteur à l'école, puis signée par la scolarité ; l'étudiant est prévenu à chaque étape. Un refus est toujours motivé. Une seule demande peut être en cours à la fois.
+
 ## 3. Gratification
 
 Un stage de plus de deux mois est obligatoirement gratifié, au minimum au taux légal en vigueur.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "campus-agent"
-version = "1.1.0"
+version = "2.0.0"
 description = "An AI agent for a school's calendars, rooms and student office, with human confirmation of every change"
 readme = "README.md"
 license = { text = "MIT" }
@@ -21,7 +21,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.6"]
+dev = ["pytest>=8.0", "ruff>=0.6", "pyjwt[crypto]>=2.8"]
+sso = ["pyjwt[crypto]>=2.8"]                            # OpenID Connect sign-in and the remote MCP endpoint
 dense = ["sentence-transformers>=3.0", "numpy>=1.26"]   # optional E5 document search (CAMPUS_DOCS_RETRIEVER=dense)
 
 [project.urls]
@@ -32,7 +33,7 @@ Demo = "https://agent-campus.onrender.com"
 include = ["campus_agent*"]
 
 [tool.setuptools.package-data]
-campus_agent = ["data/docs/*.md", "static/*"]
+campus_agent = ["data/docs/*.md", "static/*", "prompts/*.md", "skills/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

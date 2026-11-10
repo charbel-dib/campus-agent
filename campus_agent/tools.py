@@ -16,7 +16,7 @@ from typing import Any, Callable
 
 from .clock import fmt_dt, parse_dt
 from .domain import Context, DomainError, InvalidRequest, NotFound, PermissionDenied
-from .domain import academics, audit, calendar, messaging, people
+from .domain import academics, audit, calendar, grading, internships, messaging, people
 from .domain.documents import DocumentIndex
 
 log = logging.getLogger("campus_agent.tools")
@@ -35,6 +35,7 @@ class Tool:
     handler: Callable[..., dict] | None = None
     write: bool = False
     roles: tuple = ALL
+    flag: str | None = None        # offered only when this feature flag is on
 
     def input_schema(self) -> dict:
         return {"type": "object", "properties": self.properties, "required": list(self.required),
@@ -64,6 +65,59 @@ _DOC_INDEX: DocumentIndex | None = None
 def set_document_index(index: DocumentIndex) -> None:
     global _DOC_INDEX
     _DOC_INDEX = index
+
+
+# Feature flags, set once at start from the environment (runtime.boot): switch an optional tool on,
+# or take any tool out of service without a deployment of new code (CAMPUS_DISABLED_TOOLS).
+_FLAGS: dict[str, bool] = {}
+_DISABLED: set[str] = set()
+
+
+def configure(flags: dict[str, bool] | None = None, disabled: set[str] | None = None) -> None:
+    _FLAGS.clear()
+    _FLAGS.update(flags or {})
+    _DISABLED.clear()
+    _DISABLED.update(disabled or set())
+
+
+def flag(name: str) -> bool:
+    return bool(_FLAGS.get(name))
+
+
+def _ask_user(ctx: Context, question: str, options: list) -> dict:
+    options = [str(o).strip()[:80] for o in options if str(o).strip()]
+    if not 2 <= len(options) <= 5 or len(question.strip()) < 5:
+        raise InvalidRequest("une question et de deux à cinq choix courts sont attendus")
+    return {"question": question.strip(), "options": options,
+            "instruction": "La question est affichée avec ses choix. Attends la réponse de l'utilisateur."}
+
+
+_PROVIDERS = None
+
+
+def set_providers(providers) -> None:
+    global _PROVIDERS
+    _PROVIDERS = providers
+
+
+def _get_assignments(ctx: Context) -> dict:
+    if _PROVIDERS is None or _PROVIDERS.assignments is None:
+        raise NotFound("la plateforme de cours en ligne n'est pas reliée")
+    from datetime import datetime
+
+    items = [{"course": a["course"], "name": a["name"],
+              "due": datetime.fromtimestamp(a["due"]).strftime("%Y-%m-%dT%H:%M") if a["due"] else None}
+             for a in _PROVIDERS.assignments.upcoming()]
+    return {"assignments": items[:30], "source": "Moodle"}
+
+
+def _load_skill(ctx: Context, name: str) -> dict:
+    from .agent import SKILLS_DIR
+
+    path = SKILLS_DIR / f"{name}.md"
+    if not name.replace("-", "").isalnum() or not path.is_file():
+        raise NotFound(f"procédure inconnue : {name}")
+    return {"name": name, "procedure": path.read_text(encoding="utf-8")}
 
 
 def _search_documents(ctx: Context, query: str, k: int = 4) -> dict:
@@ -211,11 +265,65 @@ TOOLS: list[Tool] = [
          ("category", "subject", "body"), messaging.create_ticket, write=True),
 ]
 
+TOOLS += [
+    Tool("create_internship_request",
+         "L'étudiant dépose sa demande de convention de stage (au moins trois semaines avant le début ; durée selon "
+         "l'année). Le tuteur à l'école est prévenu. Soumis à confirmation.",
+         {"company": {"type": "string"}, "subject": {"type": "string"}, "start_date": DATE, "end_date": DATE,
+          "company_tutor": {"type": "string", "description": "Nom du tuteur en entreprise"},
+          "school_tutor_id": {"type": "string", "description": "Identifiant de l'enseignant tuteur (search_people)"}},
+         ("company", "subject", "start_date", "end_date", "company_tutor", "school_tutor_id"),
+         internships.create_internship_request, write=True, roles=("student",)),
+    Tool("get_internship_status",
+         "Demandes de convention de stage : la sienne (étudiant), celles dont on est tuteur (enseignant), "
+         "toutes (scolarité).",
+         {"status": {"type": "string", "enum": ["deposee", "validee_tuteur", "signee", "refusee"]}},
+         (), internships.get_internship_status),
+    Tool("review_internship",
+         "Le tuteur à l'école valide une demande déposée ; la scolarité signe une demande validée ; l'un ou l'autre "
+         "peut refuser avec un commentaire. L'étudiant est prévenu. Soumis à confirmation.",
+         {"internship_id": {"type": "integer"}, "decision": {"type": "string", "enum": ["valider", "signer", "refuser"]},
+          "comment": {"type": "string"}},
+         ("internship_id", "decision"), internships.review_internship, write=True, roles=("teacher", "staff")),
+    Tool("enter_grades",
+         "L'enseignant saisit les notes d'une épreuve pour des étudiants de ses groupes. Les notes restent non "
+         "publiées (invisibles aux étudiants) jusqu'à publish_grades. Soumis à confirmation.",
+         {"course_id": {"type": "string"}, "label": {"type": "string", "description": "Intitulé, ex. « TP noté 2 »"},
+          "coefficient_percent": {"type": "integer", "minimum": 1, "maximum": 100}, "date": DATE,
+          "grades": {"type": "array", "items": {"type": "object"},
+                     "description": "Liste de {student_id, score} ; score de 0 à 20"}},
+         ("course_id", "label", "coefficient_percent", "date", "grades"),
+         grading.enter_grades, write=True, roles=("teacher", "staff")),
+    Tool("publish_grades",
+         "Publie les notes saisies d'une épreuve : elles deviennent visibles et les étudiants sont prévenus "
+         "(sans la note dans le message). Soumis à confirmation.",
+         {"course_id": {"type": "string"}, "label": {"type": "string"}},
+         ("course_id", "label"), grading.publish_grades, write=True, roles=("teacher", "staff")),
+    Tool("register_makeup",
+         "L'étudiant s'inscrit au rattrapage d'un cours : ouvert si sa moyenne est inférieure à 10/20 ou si son "
+         "absence à l'examen a été excusée. Soumis à confirmation.",
+         {"course_id": {"type": "string"}}, ("course_id",), grading.register_makeup, write=True, roles=("student",)),
+    Tool("get_makeups",
+         "Inscriptions au rattrapage : les siennes (étudiant) ou celles d'un cours (enseignant, scolarité).",
+         {"course_id": {"type": "string"}}, (), grading.get_makeups),
+    Tool("get_assignments",
+         "Devoirs à rendre et leurs dates limites, lus sur la plateforme de cours en ligne (Moodle).",
+         {}, (), _get_assignments, flag="moodle"),
+    Tool("ask_user",
+         "Pose une question à choix quand une information manque et que les réponses possibles sont peu nombreuses "
+         "(quel cours, quel créneau, quelle personne). L'utilisateur répond d'un clic.",
+         {"question": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}},
+         ("question", "options"), _ask_user, flag="clarify"),
+    Tool("load_skill",
+         "Charge la procédure détaillée d'une démarche listée dans « Procédures ».",
+         {"name": {"type": "string"}}, ("name",), _load_skill, flag="skills"),
+]
+
 BY_NAME = {t.name: t for t in TOOLS}
 
 
 def tools_for(role: str) -> list[Tool]:
-    return [t for t in TOOLS if role in t.roles]
+    return [t for t in TOOLS if role in t.roles and t.name not in _DISABLED and (t.flag is None or flag(t.flag))]
 
 
 # ---------------------------------------------------------------------------------------
@@ -293,6 +401,8 @@ def execute(ctx: Context, name: str, args: Any, *, confirm_writes: bool = True) 
             raise NotFound(f"outil inconnu : {name}")
         if ctx.actor.role not in tool.roles:
             raise PermissionDenied(f"l'outil {name} n'est pas disponible pour le profil {ctx.actor.role}")
+        if name in _DISABLED or (tool.flag and not flag(tool.flag)):
+            raise PermissionDenied(f"l'outil {name} est désactivé")
         clean = validate_args(tool, args)
         if not tool.write:
             result = tool.handler(ctx, **clean)

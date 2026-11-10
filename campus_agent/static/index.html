@@ -44,6 +44,7 @@
       <h2>Essayer en trente secondes</h2>
       <p>Choisis un profil. L'assistant ne voit et ne fait que ce que ce profil a le droit de voir et de faire.</p>
       <ul class="personas" id="personas"></ul>
+      <p id="sso" hidden><a class="button" href="/api/oidc/login">Se connecter avec le compte de l'école</a></p>
       <p class="fine" id="health"></p>
     </section>
 
@@ -121,6 +122,9 @@
       </form>
       <p class="fine" id="quota" hidden></p>
       <p class="fine" id="cost"></p>
+      <p class="fine"><button class="link" id="handoff">Parler à la scolarité</button> ·
+        <button class="link" id="export-data">Exporter mes données</button> ·
+        <button class="link" id="erase-data">Effacer mes conversations</button></p>
     </section>
 
     <aside class="side" aria-label="Ton agenda et tes messages">
@@ -128,6 +132,8 @@
         <button role="tab" aria-selected="true" data-tab="week">Ma semaine</button>
         <button role="tab" aria-selected="false" data-tab="inbox">Messages <span id="inbox-count"></span></button>
         <button role="tab" aria-selected="false" data-tab="audit">Journal</button>
+        <button role="tab" aria-selected="false" data-tab="trace">Coulisses</button>
+        <button role="tab" aria-selected="false" data-tab="admin" id="tab-admin" hidden>Pilotage</button>
       </div>
       <div class="panel" id="panel-week">
         <div class="week-nav">
@@ -136,11 +142,21 @@
           <button class="icon" id="next-week" aria-label="Semaine suivante">›</button>
         </div>
         <div class="week" id="week"></div>
+        <p class="fine"><button class="link" id="ical-link">S'abonner à cet agenda (lien iCalendar)</button>
+          <input id="ical-url" class="ical-url" readonly hidden aria-label="Lien d'abonnement iCalendar"></p>
       </div>
       <div class="panel" id="panel-inbox" hidden><ul class="inbox" id="inbox"></ul></div>
       <div class="panel" id="panel-audit" hidden>
         <p class="fine">Chaque appel d'outil est journalisé : qui, quoi, quand, avec quel résultat.</p>
         <ul class="audit" id="audit"></ul>
+      </div>
+      <div class="panel" id="panel-trace" hidden>
+        <p class="fine">Ce que voit l'exploitant pour le dernier échange : une trace au format OpenTelemetry (appels au modèle, outils, durées, jetons, coût). Aucun texte de conversation n'y figure.</p>
+        <ul class="audit" id="trace"></ul>
+      </div>
+      <div class="panel" id="panel-admin" hidden>
+        <p class="fine">Suivi de l'usage pour la scolarité : volumes, coût, latence, confirmations, refus et demandes non satisfaites.</p>
+        <dl class="admin" id="admin"></dl>
       </div>
     </aside>
   </main>
