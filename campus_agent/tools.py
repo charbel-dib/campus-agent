@@ -148,7 +148,7 @@ TOOLS: list[Tool] = [
          (), messaging.get_messages),
     Tool("list_tickets",
          "Tickets de support : les siens, ou tous pour la scolarité.",
-         {"status": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
+         {"status": {"type": "string", "enum": list(messaging.TICKET_STATUSES)}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}},
          (), messaging.list_tickets),
     Tool("generate_certificate",
          "Génère une attestation de scolarité PDF et renvoie son lien de téléchargement. Étudiant : la sienne. "

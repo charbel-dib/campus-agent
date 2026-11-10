@@ -1,0 +1,224 @@
+{
+ "suite": "tasks",
+ "now": "2026-11-16T09:00",
+ "seed": 2026,
+ "notes": "Realistic tasks played by a simulated user who only knows a goal (tau-bench method). Success = the expected end state of the database and nothing else changed; reliability = pass^k over k trials.",
+ "tasks": [
+  {
+   "id": "tk-rdv-legoff", "split": "dev", "category": "rendez-vous", "persona": "stu-0001",
+   "user": {"who": "Inès Haddad, étudiante en 3e année, parcours IA.",
+            "goal": "Obtenir un rendez-vous de 20 minutes avec M. Le Goff la semaine prochaine pour parler de ton projet.",
+            "known": "Tu n'as pas de préférence d'horaire."},
+   "checks": [
+    {"type": "state", "expect": {"events": {"added": 1}, "messages": "any"}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events e JOIN event_people p ON p.event_id = e.id AND p.person_id = 'tch-001' WHERE e.kind = 'rendez_vous' AND e.organizer_id = 'stu-0001' AND e.start >= '2026-11-24T16:00' AND e.end <= '2026-11-24T17:00' AND (julianday(e.end) - julianday(e.start)) * 1440 BETWEEN 19 AND 21", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-justify", "split": "dev", "category": "absences", "persona": "stu-0001",
+   "user": {"who": "Inès Haddad, étudiante en 3e année.",
+            "goal": "Justifier ton absence au TP de traitement du langage de vendredi dernier.",
+            "known": "Tu étais malade et tu as un certificat médical du docteur Martin."},
+   "checks": [
+    {"type": "state", "expect": {"absences": {"modified": 1}}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM absences WHERE id = 382 AND status = 'en_attente' AND reason <> ''", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-study-room", "split": "dev", "category": "salles", "persona": "stu-0001",
+   "user": {"who": "Inès Haddad, étudiante en 3e année.",
+            "goal": "Réserver une salle de travail de la bibliothèque mercredi 18 novembre de 14 h à 16 h pour réviser avec Lucas Le Corre.",
+            "known": "Lucas est dans ton groupe. N'importe quelle salle de travail convient."},
+   "checks": [
+    {"type": "state", "expect": {"events": {"added": 1}, "messages": "any"}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events e JOIN rooms r ON r.id = e.room_id JOIN event_people p ON p.event_id = e.id AND p.person_id = 'stu-0002' WHERE e.organizer_id = 'stu-0001' AND e.kind = 'reservation' AND r.kind = 'study' AND e.start = '2026-11-18T14:00' AND e.end = '2026-11-18T16:00'", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-certificate", "split": "dev", "category": "documents", "persona": "stu-0003",
+   "user": {"who": "Maël Guivarc'h, étudiant en 1re année.",
+            "goal": "Obtenir une attestation de scolarité pour ta caisse d'allocations familiales."},
+   "checks": [
+    {"type": "state", "expect": {"certificates": {"added": 1}}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM certificates WHERE student_id = 'stu-0003'", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-wifi-ticket", "split": "dev", "category": "support", "persona": "stu-0003",
+   "user": {"who": "Maël Guivarc'h, étudiant en 1re année.",
+            "goal": "Signaler que le wifi ne fonctionne pas dans le bâtiment C depuis ce matin, pour que quelqu'un s'en occupe.",
+            "known": "Ton ordinateur se connecte bien au wifi dans les autres bâtiments."},
+   "checks": [
+    {"type": "state", "expect": {"tickets": {"added": 1}}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM tickets WHERE person_id = 'stu-0003' AND category = 'informatique'", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-se201-rdv", "split": "dev", "category": "rendez-vous", "persona": "stu-0004",
+   "user": {"who": "Sarah Nguyen, étudiante en 2e année.",
+            "goal": "Prendre un rendez-vous de 15 minutes avec Mme Cozic, qui fait le cours magistral de systèmes embarqués, pour parler de ta note de partiel. Cette semaine ou la suivante.",
+            "known": "Tu ne connais pas ses horaires de permanence."},
+   "checks": [
+    {"type": "state", "expect": {"events": {"added": 1}, "messages": "any"}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events e JOIN event_people p ON p.event_id = e.id AND p.person_id = 'tch-016' WHERE e.kind = 'rendez_vous' AND e.organizer_id = 'stu-0004' AND ((e.start >= '2026-11-17T13:45' AND e.end <= '2026-11-17T14:45') OR (e.start >= '2026-11-24T13:45' AND e.end <= '2026-11-24T14:45'))", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-move-tp", "split": "dev", "category": "planification", "persona": "tch-001",
+   "user": {"who": "Yann Le Goff, enseignant d'apprentissage automatique.",
+            "goal": "Déplacer ton TP d'apprentissage automatique de ce vendredi à un créneau de la semaine prochaine, et que les étudiants soient prévenus.",
+            "known": "Tu seras en déplacement vendredi. N'importe quel créneau de la semaine prochaine te convient s'il est en salle informatique."},
+   "checks": [
+    {"type": "state", "expect": {"events": {"modified": 1}, "messages": {"added": ">=1"}}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events e JOIN rooms r ON r.id = e.room_id WHERE e.id = 953 AND e.status = 'confirmed' AND e.start >= '2026-11-23' AND e.start < '2026-11-28' AND r.kind = 'tp_info'", "op": "==", "value": 1},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM message_recipients r JOIN messages m ON m.id = r.message_id WHERE m.event_id = 953 AND r.person_id = 'stu-0001'", "op": ">=", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-announce", "split": "dev", "category": "messages", "persona": "tch-001",
+   "user": {"who": "Yann Le Goff, enseignant.",
+            "goal": "Prévenir les étudiants de 3A IA qu'ils doivent apporter leur ordinateur portable à la séance de projet de jeudi."},
+   "checks": [
+    {"type": "state", "expect": {"messages": {"added": 1}}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM messages WHERE sender_id = 'tch-001' AND recipient_count = 30", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-makeup", "split": "dev", "category": "planification", "persona": "tch-008",
+   "user": {"who": "Hugo Lefèvre, enseignant d'analyse en 1re année.",
+            "goal": "Organiser une séance de rattrapage d'analyse de deux heures pour le groupe 1A-TD1 la semaine prochaine, dans une salle de TD.",
+            "known": "Le jour et l'heure t'importent peu."},
+   "checks": [
+    {"type": "state", "expect": {"events": {"added": 1}, "messages": "any"}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events e JOIN event_groups g ON g.event_id = e.id AND g.group_id = '1A-TD1' JOIN rooms r ON r.id = e.room_id WHERE e.organizer_id = 'tch-008' AND e.start >= '2026-11-23' AND e.start < '2026-11-28' AND r.kind = 'td' AND e.created_at >= '2026-11-16T09:00' AND (julianday(e.end) - julianday(e.start)) * 24 BETWEEN 1.9 AND 2.1", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-cancel-td", "split": "dev", "category": "planification", "persona": "tch-008",
+   "user": {"who": "Hugo Lefèvre, enseignant d'analyse.",
+            "goal": "Annuler ton TD d'analyse du jeudi 26 novembre avec le groupe 1A-TD1, parce que tu seras membre d'un jury ce jour-là, et que les étudiants soient prévenus."},
+   "checks": [
+    {"type": "state", "expect": {"events": {"modified": 1}, "messages": {"added": ">=1"}}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events WHERE id = 1110 AND status = 'cancelled'", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-accept-oldest", "split": "dev", "category": "scolarite", "persona": "stf-01",
+   "user": {"who": "Claire Morvan, responsable de la scolarité.",
+            "goal": "Accepter la justification d'absence en attente la plus ancienne (selon la date de l'absence).",
+            "known": "Tu ne sais pas de qui il s'agit."},
+   "checks": [
+    {"type": "state", "expect": {"absences": {"modified": 1}, "messages": "any"}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM absences WHERE id = 331 AND status = 'justifiee' AND reviewed_by = 'stf-01'", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-refuse-mael", "split": "dev", "category": "scolarite", "persona": "stf-01",
+   "user": {"who": "Claire Morvan, responsable de la scolarité.",
+            "goal": "Refuser la justification d'absence en attente de Maël Guivarc'h.",
+            "known": "Motif du refus : sa compétition n'est pas inscrite au calendrier universitaire."},
+   "checks": [
+    {"type": "state", "expect": {"absences": {"modified": 1}, "messages": "any"}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM absences WHERE id = 378 AND status = 'refusee' AND length(review_comment) >= 10", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-meeting-conseil", "split": "dev", "category": "planification", "persona": "stf-01",
+   "user": {"who": "Claire Morvan, responsable de la scolarité.",
+            "goal": "Organiser une réunion d'une heure le jeudi 26 novembre avec M. Le Goff et Mme Durand, de préférence à 14 h dans la salle du conseil.",
+            "known": "Si 14 h n'est pas possible, un autre créneau le même jour te convient, dans n'importe quelle salle de réunion."},
+   "checks": [
+    {"type": "state", "expect": {"events": {"added": 1}, "messages": "any"}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events e WHERE e.organizer_id = 'stf-01' AND e.start LIKE '2026-11-26%' AND (julianday(e.end) - julianday(e.start)) * 1440 BETWEEN 59 AND 61 AND EXISTS (SELECT 1 FROM event_people p WHERE p.event_id = e.id AND p.person_id = 'tch-001') AND EXISTS (SELECT 1 FROM event_people p WHERE p.event_id = e.id AND p.person_id = 'tch-002')", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-impossible-rdv", "split": "dev", "category": "impossible", "persona": "stu-0005",
+   "user": {"who": "Tom Bernard, étudiant en 3e année, parcours robotique.",
+            "goal": "Prendre un rendez-vous avec M. Haddou pendant sa permanence, cette semaine ou la suivante.",
+            "known": "Tu ne veux pas manquer de cours pour ça. Si c'est impossible, tu acceptes de le comprendre."},
+   "checks": [
+    {"type": "state", "expect": {"tickets": {"added": "<=1"}}, "note": "Asking the office by ticket is a fair way out when no slot fits."},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events WHERE organizer_id = 'stu-0005' AND kind = 'rendez_vous'", "op": "==", "value": 0}
+   ]
+  },
+  {
+   "id": "tk-h-justify-lucas", "split": "heldout", "category": "absences", "persona": "stu-0002",
+   "user": {"who": "Lucas Le Corre, étudiant en 3e année.",
+            "goal": "Justifier ton absence au cours de gestion de projet du mardi 10 novembre.",
+            "known": "Ton train a été supprimé ce jour-là et tu as une attestation de la SNCF."},
+   "checks": [
+    {"type": "state", "expect": {"absences": {"modified": 1}}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM absences WHERE id = 345 AND status = 'en_attente'", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-h-late-justify", "split": "heldout", "category": "impossible", "persona": "stu-0002",
+   "user": {"who": "Lucas Le Corre, étudiant en 3e année.",
+            "goal": "Justifier ton absence au cours d'apprentissage automatique du lundi 19 octobre.",
+            "known": "Tu avais un certificat médical mais tu as oublié de le déposer."},
+   "checks": [
+    {"type": "state", "expect": {"tickets": {"added": "<=1"}}, "note": "Asking the office by ticket is a fair way out once the deadline has passed."},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM absences WHERE id = 297 AND status = 'non_justifiee'", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-h-sarah-room", "split": "heldout", "category": "salles", "persona": "stu-0004",
+   "user": {"who": "Sarah Nguyen, étudiante en 2e année.",
+            "goal": "Réserver la plus grande salle de travail de la bibliothèque vendredi 20 novembre de 12 h 30 à 13 h 30, avec Louis Ferré.",
+            "known": "Louis est dans ton groupe de TD."},
+   "checks": [
+    {"type": "state", "expect": {"events": {"added": 1}, "messages": "any"}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events e JOIN event_people p ON p.event_id = e.id AND p.person_id = 'stu-0152' WHERE e.organizer_id = 'stu-0004' AND e.room_id = 'BU-S4' AND e.start = '2026-11-20T12:30' AND e.end = '2026-11-20T13:30'", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-h-cancel-vision", "split": "heldout", "category": "planification", "persona": "tch-023",
+   "user": {"who": "Samir Haddou, enseignant de vision par ordinateur.",
+            "goal": "Annuler ta séance de TP de vision du mercredi 25 novembre, car tu seras en conférence, et que les étudiants soient prévenus."},
+   "checks": [
+    {"type": "state", "expect": {"events": {"modified": 1}, "messages": {"added": ">=1"}}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events WHERE id = 1063 AND status = 'cancelled'", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-h-move-ia302", "split": "heldout", "category": "planification", "persona": "tch-002",
+   "user": {"who": "Sophie Durand, enseignante d'apprentissage profond.",
+            "goal": "Déplacer ton cours magistral d'apprentissage profond du mardi 24 novembre au mercredi 25 novembre dans la matinée, et prévenir les étudiants.",
+            "known": "Le cours dure deux heures. Une salle équivalente convient."},
+   "checks": [
+    {"type": "state", "expect": {"events": {"modified": 1}, "messages": {"added": ">=1"}}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events WHERE id = 1083 AND status = 'confirmed' AND start >= '2026-11-25T08:00' AND end <= '2026-11-25T12:30'", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-h-cert-sarah", "split": "heldout", "category": "documents", "persona": "stf-03",
+   "user": {"who": "Aïcha Diallo, gestionnaire de scolarité.",
+            "goal": "Générer une attestation de scolarité pour l'étudiante Sarah Nguyen, qui l'a demandée au guichet."},
+   "checks": [
+    {"type": "state", "expect": {"certificates": {"added": 1}}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM certificates WHERE student_id = 'stu-0004'", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-h-support-message", "split": "heldout", "category": "messages", "persona": "tch-001",
+   "user": {"who": "Yann Le Goff, enseignant d'apprentissage automatique.",
+            "goal": "Écrire aux étudiants qui ont moins de 10 de moyenne en apprentissage automatique pour leur proposer une séance de soutien jeudi 26 novembre à 16 h.",
+            "known": "Tu ne sais pas qui ils sont. Tu ne veux pas écrire à toute la promotion."},
+   "checks": [
+    {"type": "state", "expect": {"messages": {"added": 1}}},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM messages m WHERE m.sender_id = 'tch-001' AND m.recipient_count = 2 AND EXISTS (SELECT 1 FROM message_recipients r WHERE r.message_id = m.id AND r.person_id = 'stu-0002') AND EXISTS (SELECT 1 FROM message_recipients r WHERE r.message_id = m.id AND r.person_id = 'stu-0214')", "op": "==", "value": 1}
+   ]
+  },
+  {
+   "id": "tk-h-two-goals", "split": "heldout", "category": "rendez-vous", "persona": "stu-0001",
+   "user": {"who": "Inès Haddad, étudiante en 3e année.",
+            "goal": "Connaître ta moyenne provisoire en apprentissage automatique, puis prendre un rendez-vous de 15 minutes avec l'enseignant de ce cours la semaine prochaine pour en parler."},
+   "checks": [
+    {"type": "state", "expect": {"events": {"added": 1}, "messages": "any"}},
+    {"type": "reply_contains_any", "values": ["10,25", "10.25"]},
+    {"type": "sql", "query": "SELECT COUNT(*) FROM events e JOIN event_people p ON p.event_id = e.id AND p.person_id = 'tch-001' WHERE e.kind = 'rendez_vous' AND e.organizer_id = 'stu-0001' AND e.start >= '2026-11-24T16:00' AND e.end <= '2026-11-24T17:00'", "op": "==", "value": 1}
+   ]
+  }
+ ]
+}

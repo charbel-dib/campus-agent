@@ -1,0 +1,240 @@
+{
+ "meta": {
+  "version": "1.1.0",
+  "prompt_hash": "3b93ab76e710",
+  "model": "claude-haiku-5-5",
+  "sim_model": "claude-haiku-5-5",
+  "now": "2026-11-16T09:00",
+  "seed": 2026,
+  "k": 4,
+  "effort": null
+ },
+ "global": {
+  "runs": 656,
+  "pass_rate": 0.971,
+  "checkable_claims": 4568,
+  "unsupported_claims": 23,
+  "unsupported_claim_rate": 0.005,
+  "runs_with_unsupported_claim": 0.032,
+  "tool_calls": 1267,
+  "tool_call_error_rate": 0.03,
+  "malformed_tool_call_rate": 0.0032,
+  "agent_cost_usd": 0.4789,
+  "mean_cost_cents": 0.073,
+  "cache_read_share": 0.923,
+  "latency_p50_s": 4.85,
+  "latency_p95_s": 15.72,
+  "crashed_runs": 0
+ },
+ "suites": {
+  "tasks": {
+   "runs": 88,
+   "tasks": 22,
+   "trials": 4,
+   "pass^1": 0.955,
+   "pass^2": 0.909,
+   "pass^3": 0.864,
+   "pass^4": 0.818,
+   "pass^1_ci95": [
+    0.909,
+    0.989
+   ],
+   "agent_cost_usd": 0.1452,
+   "mean_cost_cents": 0.165,
+   "sim_cost_usd": 0.071,
+   "latency_p50_s": 12.6,
+   "latency_p95_s": 28.44,
+   "errors": 0,
+   "mean_user_turns": 1.55
+  },
+  "tool_calls": {
+   "runs": 120,
+   "tasks": 30,
+   "trials": 4,
+   "pass^1": 0.992,
+   "pass^2": 0.983,
+   "pass^3": 0.975,
+   "pass^4": 0.967,
+   "pass^1_ci95": [
+    0.975,
+    1.0
+   ],
+   "agent_cost_usd": 0.0439,
+   "mean_cost_cents": 0.037,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 3.83,
+   "latency_p95_s": 5.92,
+   "errors": 0,
+   "accuracy_by_category": {
+    "irrelevance": 1.0,
+    "missing_parameter": 0.95,
+    "multiple": 1.0,
+    "simple": 1.0
+   }
+  },
+  "traps": {
+   "runs": 40,
+   "tasks": 10,
+   "trials": 4,
+   "pass^1": 0.975,
+   "pass^2": 0.95,
+   "pass^3": 0.925,
+   "pass^4": 0.9,
+   "pass^1_ci95": [
+    0.925,
+    1.0
+   ],
+   "agent_cost_usd": 0.0321,
+   "mean_cost_cents": 0.08,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 6.51,
+   "latency_p95_s": 10.81,
+   "errors": 0,
+   "milestone_rate": 1.0,
+   "minefield_hit_rate": 0.028
+  },
+  "injection": {
+   "runs": 64,
+   "tasks": 16,
+   "trials": 4,
+   "pass^1": 0.984,
+   "pass^2": 0.969,
+   "pass^3": 0.953,
+   "pass^4": 0.938,
+   "pass^1_ci95": [
+    0.953,
+    1.0
+   ],
+   "agent_cost_usd": 0.0287,
+   "mean_cost_cents": 0.045,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 3.76,
+   "latency_p95_s": 6.33,
+   "errors": 0,
+   "utility_without_attack": 0.969,
+   "utility_under_attack": 1.0,
+   "attack_success_rate": 0.0,
+   "attack_resistance_pass^k": 1.0
+  },
+  "access": {
+   "runs": 84,
+   "tasks": 21,
+   "trials": 4,
+   "pass^1": 1.0,
+   "pass^2": 1.0,
+   "pass^3": 1.0,
+   "pass^4": 1.0,
+   "pass^1_ci95": [
+    1.0,
+    1.0
+   ],
+   "agent_cost_usd": 0.0332,
+   "mean_cost_cents": 0.04,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 3.86,
+   "latency_p95_s": 6.51,
+   "errors": 0,
+   "leak_rate": 0.0,
+   "leaks_in_tool_results": 0,
+   "leaks_in_replies": 0,
+   "positive_controls_ok": 1.0
+  },
+  "grounding": {
+   "runs": 52,
+   "tasks": 13,
+   "trials": 4,
+   "pass^1": 0.923,
+   "pass^2": 0.872,
+   "pass^3": 0.846,
+   "pass^4": 0.846,
+   "pass^1_ci95": [
+    0.808,
+    1.0
+   ],
+   "agent_cost_usd": 0.0301,
+   "mean_cost_cents": 0.058,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 5.01,
+   "latency_p95_s": 7.11,
+   "errors": 0,
+   "accuracy_by_category": {
+    "facts": 0.9,
+    "false_premise": 0.875,
+    "unanswerable": 1.0
+   }
+  },
+  "robustness": {
+   "runs": 44,
+   "tasks": 11,
+   "trials": 4,
+   "pass^1": 0.932,
+   "pass^2": 0.879,
+   "pass^3": 0.841,
+   "pass^4": 0.818,
+   "pass^1_ci95": [
+    0.818,
+    1.0
+   ],
+   "agent_cost_usd": 0.0574,
+   "mean_cost_cents": 0.131,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 5.9,
+   "latency_p95_s": 21.0,
+   "errors": 0,
+   "accuracy_by_variant": {
+    "compound": 1.0,
+    "english": 0.75,
+    "informal": 1.0,
+    "long_context": 1.0,
+    "typos": 1.0
+   }
+  },
+  "core": {
+   "runs": 164,
+   "tasks": 41,
+   "trials": 4,
+   "pass^1": 0.97,
+   "pass^2": 0.963,
+   "pass^3": 0.957,
+   "pass^4": 0.951,
+   "pass^1_ci95": [
+    0.915,
+    1.0
+   ],
+   "agent_cost_usd": 0.1082,
+   "mean_cost_cents": 0.066,
+   "sim_cost_usd": 0.0,
+   "latency_p50_s": 4.93,
+   "latency_p95_s": 7.75,
+   "errors": 0
+  }
+ },
+ "splits": {
+  "dev": {
+   "tasks": 115,
+   "trials": 4,
+   "pass^1": 0.967,
+   "pass^2": 0.948,
+   "pass^3": 0.933,
+   "pass^4": 0.922,
+   "pass^1_ci95": [
+    0.941,
+    0.987
+   ],
+   "runs": 460
+  },
+  "heldout": {
+   "tasks": 49,
+   "trials": 4,
+   "pass^1": 0.98,
+   "pass^2": 0.959,
+   "pass^3": 0.939,
+   "pass^4": 0.918,
+   "pass^1_ci95": [
+    0.959,
+    0.995
+   ],
+   "runs": 196
+  }
+ }
+}

@@ -105,6 +105,11 @@ def create_ticket(ctx: Context, category: str, subject: str, body: str, dry_run:
             "delai": "prise en charge sous un jour ouvré"}
 
 
+# A new ticket is "ouvert"; the office moves it on. The tool lists the values so the model cannot
+# filter on a status that does not exist (it once asked for "open" and found nothing).
+TICKET_STATUSES = ("ouvert", "en_cours", "resolu")
+
+
 def list_tickets(ctx: Context, status: str | None = None, limit: int = 20) -> dict:
     sql, params = "SELECT * FROM tickets", []
     clauses = []

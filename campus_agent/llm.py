@@ -76,7 +76,8 @@ class LLMError(RuntimeError):
 class MessagesClient(Protocol):
     model: str
 
-    def create(self, *, system: list[dict], messages: list[dict], tools: list[dict], max_tokens: int) -> dict:
+    def create(self, *, system: list[dict], messages: list[dict], tools: list[dict], max_tokens: int,
+               tool_choice: dict | None = None) -> dict:
         ...
 
 
@@ -97,9 +98,12 @@ class ClaudeClient:
 
             self.session = requests.Session()
 
-    def create(self, *, system: list[dict], messages: list[dict], tools: list[dict], max_tokens: int) -> dict:
+    def create(self, *, system: list[dict], messages: list[dict], tools: list[dict], max_tokens: int,
+               tool_choice: dict | None = None) -> dict:
         body: dict[str, Any] = {"model": self.model, "max_tokens": max_tokens, "system": system,
                                 "messages": messages, "tools": tools}
+        if tool_choice:
+            body["tool_choice"] = tool_choice
         if self.effort:
             body["output_config"] = {"effort": self.effort}
         headers = {"x-api-key": self.api_key, "anthropic-version": API_VERSION, "content-type": "application/json"}

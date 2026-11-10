@@ -12,4 +12,4 @@ The package is organised in layers, from the data up to the interfaces:
 - ``mcp_server``the same tools exposed over the Model Context Protocol
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"

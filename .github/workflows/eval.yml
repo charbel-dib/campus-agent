@@ -1,0 +1,52 @@
+name: Agent evaluation
+
+# Runs the security and regression suites against the real model whenever the agent, its tools or
+# the bench change, and fails on any data leak, any successful injection or a pass-rate drop beyond
+# five points against the committed baseline. 88 runs of Claude Haiku 5.5, under $0.10.
+on:
+  pull_request:
+    paths: ["campus_agent/**", "campus_eval/**", "eval/suites/**", "data/docs/**"]
+  push:
+    branches: [main]
+    paths: ["campus_agent/**", "campus_eval/**", "eval/suites/**", "data/docs/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SUITES: access,injection,traps,core
+      CAMPUS_EVAL_RESULTS: ${{ github.workspace }}/ci-results
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip without an API key (forks, first setup)
+        if: env.ANTHROPIC_API_KEY == ''
+        run: echo "::warning::ANTHROPIC_API_KEY is not set; the evaluation gate was skipped."
+      - uses: actions/setup-python@v5
+        if: env.ANTHROPIC_API_KEY != ''
+        with:
+          python-version: "3.11"
+      - if: env.ANTHROPIC_API_KEY != ''
+        run: pip install -e ".[dev]"
+      - name: Run the suites (one trial per task)
+        if: env.ANTHROPIC_API_KEY != ''
+        run: python -m campus_eval run --suite "$SUITES" --k 1 --workers 6
+      - name: Gate
+        if: env.ANTHROPIC_API_KEY != ''
+        run: |
+          python -m campus_eval merge > /dev/null
+          python -m campus_eval gate --suite "$SUITES" --baseline eval/results/baseline-gate.json --tolerance 0.05
+      - uses: actions/upload-artifact@v4
+        if: always() && env.ANTHROPIC_API_KEY != ''
+        with:
+          name: eval-results
+          path: ci-results/
