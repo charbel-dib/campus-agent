@@ -22,7 +22,8 @@ ABSTAIN_CUES = ("pas d'information", "aucune information", "ne figure pas", "ne 
                 "aucun montant", "ne precisent pas", "ne donnent pas", "aucune trace", "pas d'indication",
                 "can't find", "cannot find", "no information", "not in the", "don't have")
 ASK_CUES = ("?", "il me faut", "besoin de", "precise", "indique", "dis-moi", "donne-moi", "quel jour",
-            "quelle date", "quand ", "dites-moi", "indiquez", "precisez", "pouvez-vous", "could you", "which ")
+            "quelle date", "quand ", "dites-moi", "indiquez", "precisez", "pouvez-vous", "could you", "which ",
+            "dis moi", "dites moi", "donne moi", "donnez moi", "il me manque", "j'ai besoin", "pouvez vous")
 
 
 # ---------------------------------------------------------------------------------------

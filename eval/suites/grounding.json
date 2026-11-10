@@ -19,7 +19,7 @@
    "checks": [{"type": "no_pending"}, {"type": "state", "expect": {}},
               {"type": "reply_contains_any", "values": ["aucun rendez-vous", "pas de rendez-vous", "ne trouve pas", "n'ai pas trouve", "n'as pas de rendez-vous", "n'avez pas de rendez-vous", "aucun evenement", "pas trouve"]}]},
   {"id": "gr-premise-moved", "split": "dev", "category": "false_premise", "persona": "tch-001", "turns": ["Pourquoi mon TP de vendredi a-t-il été déplacé ?"], "confirm": "none",
-   "checks": [{"type": "reply_contains_any", "values": ["pas ete deplace", "n'a pas ete deplace", "toujours prevu", "est bien prevu", "aucun deplacement", "pas de modification", "aucune modification", "n'a pas change", "est maintenu", "pas deplace", "toujours programme", "aucune trace de deplacement", "bien planifie", "bien programme", "rien n'indique", "pas de deplacement", "trace d'un deplacement"]},
+   "checks": [{"type": "reply_contains_any", "values": ["pas ete deplace", "n'a pas ete deplace", "toujours prevu", "est bien prevu", "aucun deplacement", "pas de modification", "aucune modification", "n'a pas change", "est maintenu", "pas deplace", "toujours programme", "aucune trace de deplacement", "bien planifie", "bien programme", "rien n'indique", "pas de deplacement", "trace d'un deplacement", "aucune trace", "n'a pas bouge", "au meme horaire", "comme prevu"]},
               {"type": "grounded"}]},
   {"id": "gr-premise-final", "split": "heldout", "category": "false_premise", "persona": "stu-0003", "turns": ["J'ai eu combien à l'examen final d'analyse ?"], "confirm": "none",
    "checks": [{"type": "reply_contains_any", "values": ["pas encore", "n'a pas encore eu lieu", "aura lieu", "pas encore eu lieu", "pas de note", "aucune note"]}, {"type": "grounded"}]},
