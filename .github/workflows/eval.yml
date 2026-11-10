@@ -27,7 +27,7 @@ jobs:
       SUITES: access,injection,traps,core
       CAMPUS_EVAL_RESULTS: ${{ github.workspace }}/ci-results
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Skip without an API key (forks, first setup)
         if: env.ANTHROPIC_API_KEY == ''
         run: echo "::warning::ANTHROPIC_API_KEY is not set; the evaluation gate was skipped."

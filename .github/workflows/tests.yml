@@ -11,7 +11,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -23,7 +23,7 @@ jobs:
     # Builds the campus agent image and checks that it starts and serves its page and API.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build -t campus-agent .
       - run: docker run -d --name campus -p 8000:8000 -e CAMPUS_SECRET_KEY=ci campus-agent
       - name: Wait for the service
