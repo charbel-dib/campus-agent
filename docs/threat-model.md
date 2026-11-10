@@ -61,3 +61,5 @@ messages; the integrity of the timetable; the school's API budget.
   its user (never for anyone else: T02 and T04 still hold).
 - The demo login lets anyone pick a persona. It is disabled with `CAMPUS_DEMO_LOGIN=0` once sign-in is configured.
 - Conversations are sent to the Claude API. What is sent is limited to what the signed-in user may see.
+- The image scan accepts one finding, listed with its reason and an expiry date in `.trivyignore`: a setuptools
+  advisory reported without any file behind it, on code the running agent never imports.

@@ -48,8 +48,9 @@ jobs:
           mkdir rootfs && sudo tar -xf rootfs.tar -C rootfs
       - name: Scan the image (fails on critical or high vulnerabilities that have a fix)
         run: |
-          docker run --rm -v "$PWD/rootfs:/rootfs:ro" aquasec/trivy:0.58.1 rootfs --scanners vuln \
-            --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 --no-progress /rootfs
+          docker run --rm -v "$PWD/rootfs:/rootfs:ro" -v "$PWD/.trivyignore:/trivyignore:ro" aquasec/trivy:0.58.1 \
+            rootfs --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed --ignorefile /trivyignore \
+            --exit-code 1 --no-progress /rootfs
       - name: Where the findings are (on failure)
         if: failure()
         run: |

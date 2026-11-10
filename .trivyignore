@@ -1,0 +1,8 @@
+# Accepted findings of the image scan (security.yml). Each one says why, and expires so it is reviewed again.
+#
+# CVE-2025-47273, setuptools 70.3.0, path traversal in setuptools.package_index (easy_install downloads).
+# Trivy reports it with no file path, and the build deletes every setuptools directory from the image:
+# no file of the final filesystem carries this version (checked against the base image layers and the 36
+# wheels the agent installs). The vulnerable code downloads packages at build time; the running agent never
+# imports setuptools. Reviewed 2026-11-10.
+CVE-2025-47273 exp:2027-02-28
