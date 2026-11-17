@@ -1,7 +1,7 @@
 # Campus agent: web service and demo interface.
 #   docker build -t campus-agent .
 #   docker run -p 8000:8000 -e ANTHROPIC_API_KEY=... -e CAMPUS_SECRET_KEY=... campus-agent
-FROM python:3.11-slim
+FROM python:3.15-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
